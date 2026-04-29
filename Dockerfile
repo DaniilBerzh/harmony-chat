@@ -1,25 +1,30 @@
-FROM ubuntu:22.04
+FROM node:18-alpine
 
-# Устанавливаем необходимые пакеты
-RUN apt-get update && apt-get install -y \
+# Устанавливаем PHP и Apache
+RUN apk add --no-cache \
     apache2 \
-    php8.1 \
-    php8.1-mysql \
-    php8.1-mbstring \
-    php8.1-json \
-    nodejs \
-    npm \
+    apache2-proxy \
+    apache2-ssl \
+    php82 \
+    php82-apache2 \
+    php82-mysqli \
+    php82-pdo_mysql \
+    php82-mbstring \
+    php82-json \
+    php82-session \
     mysql-client \
-    && apt-get clean
+    curl \
+    bash
 
 # Копируем все файлы проекта
 COPY . /var/www/html/
 
-# Копируем конфиг Apache для WebSocket прокси
+# Копируем конфиг Apache
+RUN cp /var/www/html/.htaccess /etc/apache2/conf.d/ 2>/dev/null || true
+
+# Настраиваем Apache для прокси WebSocket
 RUN echo 'ProxyPass /ws ws://localhost:8080/ws\n\
-ProxyPassReverse /ws ws://localhost:8080/ws' > /etc/apache2/conf-available/websocket.conf && \
-    a2enconf websocket && \
-    a2enmod proxy proxy_http proxy_wstunnel
+ProxyPassReverse /ws ws://localhost:8080/ws' >> /etc/apache2/conf.d/websocket.conf
 
 # Устанавливаем Node.js зависимости
 WORKDIR /var/www/html
@@ -27,10 +32,9 @@ RUN npm install
 
 # Создаем скрипт запуска
 RUN echo '#!/bin/bash\n\
-service apache2 start\n\
+httpd -k start\n\
 node server.js' > /start.sh && chmod +x /start.sh
 
-# Открываем порты
 EXPOSE 80 8080
 
 CMD ["/start.sh"]

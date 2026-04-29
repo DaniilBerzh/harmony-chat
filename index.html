@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Harmony Chat - Анонимный голосовой чат</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🎤 Harmony Chat</h1>
+            <p>Анонимное голосовое общение</p>
+        </div>
+        
+        <div class="auth-box">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="showTab('register')">Регистрация</button>
+                <button class="tab-btn" onclick="showTab('login')">Авторизация</button>
+            </div>
+            
+            <!-- Регистрация -->
+            <div id="register-form" class="form-container">
+                <h3>Создать аккаунт</h3>
+                <input type="number" id="reg-age" placeholder="Возраст (11-18)" min="11" max="18">
+                <input type="password" id="reg-password" placeholder="Пароль">
+                <button onclick="register()">Зарегистрироваться</button>
+                <div id="reg-static-id" style="display:none; margin-top:15px"></div>
+                <div id="reg-message"></div>
+            </div>
+            
+            <!-- Авторизация -->
+            <div id="login-form" class="form-container" style="display:none">
+                <h3>Войти в чат</h3>
+                <input type="text" id="login-static" placeholder="Static ID">
+                <input type="password" id="login-password" placeholder="Пароль">
+                <button onclick="login()">Войти</button>
+                <div id="login-message"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showTab(tab) {
+            document.querySelectorAll('.form-container').forEach(el => el.style.display = 'none');
+            document.getElementById(tab + '-form').style.display = 'block';
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+        
+        async function register() {
+            const age = document.getElementById('reg-age').value;
+            const password = document.getElementById('reg-password').value;
+            
+            const res = await fetch('register.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({age, password})
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                document.getElementById('reg-static-id').innerHTML = `✅ Ваш Static ID: <strong>${data.static_id}</strong><br>Сохраните его!`;
+                document.getElementById('reg-static-id').style.display = 'block';
+                document.getElementById('reg-message').innerHTML = '<div class="success-block">🔊 Статик шум... Аккаунт создан!</div>';
+                setTimeout(() => showTab('login'), 2000);
+            } else {
+                document.getElementById('reg-message').innerHTML = `<div class="error">${data.error}</div>`;
+            }
+        }
+        
+        async function login() {
+            const staticId = document.getElementById('login-static').value;
+            const password = document.getElementById('login-password').value;
+            
+            const res = await fetch('login.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({static_id: staticId, password})
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                window.location.href = 'dashboard.php';
+            } else {
+                document.getElementById('login-message').innerHTML = `<div class="error">${data.error}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

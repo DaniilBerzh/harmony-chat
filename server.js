@@ -3,6 +3,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
 const mysql = require('mysql2');
+const crypto = require('crypto');
 
 // Создаем Express приложение
 const app = express();
@@ -19,12 +20,173 @@ app.use((req, res, next) => {
     next();
 });
 
-// Маршруты для HTML/PHP файлов
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+// ============================================
+// API МАРШРУТЫ (ПРЯМАЯ РАБОТА С БД)
+// ============================================
+
+// Регистрация
+app.post('/register.php', async (req, res) => {
+    console.log('📝 Регистрация:', req.body);
+    
+    try {
+        const { age, password } = req.body;
+        
+        if (!age || !password || age < 11 || age > 18) {
+            return res.json({ success: false, error: 'Некорректный возраст (11-18 лет)' });
+        }
+        
+        // Генерируем числовой Static ID
+        let static_id;
+        let isUnique = false;
+        
+        while (!isUnique) {
+            static_id = '#' + Math.floor(Math.random() * 900000 + 100000).toString();
+            const [existing] = await db.promise().query("SELECT id FROM users WHERE static_id = ?", [static_id]);
+            if (existing.length === 0) isUnique = true;
+        }
+        
+        // Хешируем пароль
+        const password_hash = crypto.createHash('sha256').update(password).digest('hex');
+        
+        // Сохраняем пользователя
+        await db.promise().query(
+            "INSERT INTO users (static_id, age, password_hash) VALUES (?, ?, ?)",
+            [static_id, age, password_hash]
+        );
+        
+        console.log(`✅ Зарегистрирован: ${static_id}`);
+        res.json({ success: true, static_id: static_id });
+        
+    } catch (error) {
+        console.error('Register error:', error);
+        res.json({ success: false, error: 'Ошибка сервера' });
+    }
 });
 
-app.get('/index.html', (req, res) => {
+// Авторизация
+app.post('/login.php', async (req, res) => {
+    console.log('📝 Авторизация:', req.body);
+    
+    try {
+        const { static_id, password } = req.body;
+        
+        if (!static_id || !password) {
+            return res.json({ success: false, error: 'Введите Static ID и пароль' });
+        }
+        
+        const [rows] = await db.promise().query(
+            "SELECT * FROM users WHERE static_id = ?",
+            [static_id]
+        );
+        
+        if (rows.length === 0) {
+            return res.json({ success: false, error: 'Пользователь не найден' });
+        }
+        
+        const user = rows[0];
+        const password_hash = crypto.createHash('sha256').update(password).digest('hex');
+        
+        if (user.password_hash !== password_hash) {
+            return res.json({ success: false, error: 'Неверный пароль' });
+        }
+        
+        // Сохраняем в сессию (используем глобальный объект)
+        userSessions.set(static_id, {
+            id: user.id,
+            static_id: user.static_id,
+            is_admin: user.is_admin === 1
+        });
+        
+        console.log(`✅ Авторизован: ${static_id}`);
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        res.json({ success: false, error: 'Ошибка сервера' });
+    }
+});
+
+// API для комнат
+app.post('/api.php', async (req, res) => {
+    console.log('📝 API POST:', req.body);
+    
+    try {
+        const { action, name, max, type, room_id } = req.body;
+        
+        if (action === 'createRoom') {
+            const [result] = await db.promise().query(
+                "INSERT INTO rooms (name, max_people, type, created_by) VALUES (?, ?, ?, ?)",
+                [name, max || 10, type || 'voice', 'system']
+            );
+            res.json({ success: true, room_id: result.insertId, room_name: name });
+            
+        } else if (action === 'joinRoom') {
+            const [room] = await db.promise().query(
+                "SELECT * FROM rooms WHERE id = ?",
+                [room_id]
+            );
+            if (room.length === 0) {
+                res.json({ success: false, error: 'Комната не найдена' });
+            } else {
+                res.json({ success: true, room_name: room[0].name });
+            }
+            
+        } else if (action === 'leaveRoom') {
+            res.json({ success: true });
+            
+        } else {
+            res.json({ success: false, error: 'Неизвестное действие' });
+        }
+        
+    } catch (error) {
+        console.error('API error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+app.get('/api.php', async (req, res) => {
+    const { action } = req.query;
+    console.log('📝 API GET:', action);
+    
+    try {
+        if (action === 'getRooms') {
+            const [rows] = await db.promise().query(`
+                SELECT r.*, 
+                (SELECT COUNT(*) FROM room_members WHERE room_id = r.id) as current_members 
+                FROM rooms r 
+                WHERE r.is_active = 1 
+                ORDER BY r.created_at DESC
+            `);
+            res.json(rows);
+            
+        } else if (action === 'getRoomMembers') {
+            const room_id = req.query.room_id;
+            const [rows] = await db.promise().query(
+                "SELECT user_static_id FROM room_members WHERE room_id = ?",
+                [room_id]
+            );
+            res.json({ members: rows.map(r => r.user_static_id) });
+            
+        } else if (action === 'getOnlineCount') {
+            const [rows] = await db.promise().query(
+                "SELECT COUNT(DISTINCT user_static_id) as count FROM room_members"
+            );
+            res.json({ count: rows[0].count });
+            
+        } else {
+            res.json([]);
+        }
+        
+    } catch (error) {
+        console.error('API GET error:', error);
+        res.json([]);
+    }
+});
+
+// ============================================
+// СТАТИЧЕСКИЕ ФАЙЛЫ
+// ============================================
+app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
@@ -44,21 +206,8 @@ app.get('/script.js', (req, res) => {
     res.sendFile(path.join(__dirname, 'script.js'));
 });
 
-// POST маршруты для PHP файлов
-app.post('/register.php', (req, res) => {
-    res.sendFile(path.join(__dirname, 'register.php'));
-});
-
-app.post('/login.php', (req, res) => {
-    res.sendFile(path.join(__dirname, 'login.php'));
-});
-
-app.post('/api.php', (req, res) => {
-    res.sendFile(path.join(__dirname, 'api.php'));
-});
-
-app.get('/api.php', (req, res) => {
-    res.sendFile(path.join(__dirname, 'api.php'));
+app.get('/logout.php', (req, res) => {
+    res.sendFile(path.join(__dirname, 'logout.php'));
 });
 
 // Все остальные GET запросы
@@ -66,10 +215,9 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Создаем HTTP сервер
-const server = http.createServer(app);
-
-// Настройки базы данных из переменных окружения Railway
+// ============================================
+// БАЗА ДАННЫХ
+// ============================================
 const dbConfig = {
     host: process.env.MYSQLHOST || 'localhost',
     port: parseInt(process.env.MYSQLPORT) || 3306,
@@ -82,126 +230,139 @@ const dbConfig = {
     keepAliveInitialDelay: 0
 };
 
-// Создаем пул соединений
 const db = mysql.createPool(dbConfig);
 
-// Проверка подключения к БД
+// Глобальные хранилища
+const userSessions = new Map();
+const clients = new Map();
+
+// Инициализация базы данных
+async function initDatabase() {
+    try {
+        const conn = await db.promise().getConnection();
+        
+        // Создаем таблицу пользователей
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                static_id VARCHAR(10) UNIQUE NOT NULL,
+                age INT,
+                password_hash VARCHAR(255) NOT NULL,
+                is_admin BOOLEAN DEFAULT FALSE,
+                is_banned BOOLEAN DEFAULT FALSE,
+                ban_reason TEXT,
+                unban_date DATETIME,
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Создаем таблицу комнат
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS rooms (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(50) NOT NULL,
+                type VARCHAR(10) DEFAULT 'voice',
+                max_people INT DEFAULT 10,
+                created_by VARCHAR(10),
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Создаем таблицу участников комнат
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS room_members (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                room_id INT,
+                user_static_id VARCHAR(10),
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+            )
+        `);
+        
+        // Создаем таблицу логов
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                action VARCHAR(255),
+                user_static_id VARCHAR(10),
+                target_static_id VARCHAR(10),
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        console.log('✅ База данных инициализирована');
+        conn.release();
+        
+    } catch (error) {
+        console.error('❌ Ошибка инициализации БД:', error.message);
+    }
+}
+
+// Проверка подключения
 db.getConnection((err, connection) => {
     if (err) {
         console.error('❌ Ошибка подключения к MySQL:', err.message);
     } else {
         console.log('✅ Подключение к MySQL успешно!');
         connection.release();
+        initDatabase();
     }
 });
 
-let clients = new Map();
+// ============================================
+// WEBSOCKET СЕРВЕР
+// ============================================
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-// Настройки для голоса
+// Настройки голоса
 const VOICE_CONFIG = {
     minVolume: 0.05,
-    sampleRate: 44100,
-    frameSize: 4096,
     activityTimeout: 300000
 };
 
-console.log('🎙️ Запуск Harmony Chat сервера...');
-console.log(`📡 Порт: ${port}`);
-console.log(`🖥️ Режим: ${process.env.RAILWAY_ENVIRONMENT ? 'Railway Cloud' : 'Local Development'}`);
-
-// Создаем WebSocket сервер
-const wss = new WebSocket.Server({ server });
-
-// Функция отправки сообщения всем в комнате
+// Функции WebSocket
 function notifyRoomMembers(roomId, event, userId, extraData = null) {
     const message = { type: event, userId: userId };
-    if (extraData) {
-        Object.assign(message, extraData);
-    }
+    if (extraData) Object.assign(message, extraData);
     
-    let sentCount = 0;
     for (let [id, client] of clients.entries()) {
-        if (client.roomId === roomId) {
-            try {
-                if (client.ws && client.ws.readyState === WebSocket.OPEN) {
-                    client.ws.send(JSON.stringify(message));
-                    sentCount++;
-                }
-            } catch (error) {
-                console.error(`Ошибка отправки ${id}:`, error.message);
-            }
+        if (client.roomId === roomId && client.ws?.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify(message));
         }
     }
-    return sentCount;
 }
 
-// Функция трансляции голоса
 function broadcastVoice(roomId, fromUserId, audioData, volume) {
-    let sentCount = 0;
     for (let [id, client] of clients.entries()) {
-        if (id !== fromUserId && client.roomId === roomId) {
-            try {
-                if (client.ws && client.ws.readyState === WebSocket.OPEN) {
-                    client.ws.send(JSON.stringify({
-                        type: 'voice_data',
-                        from: fromUserId,
-                        audio: audioData,
-                        volume: volume,
-                        timestamp: Date.now()
-                    }));
-                    sentCount++;
-                }
-            } catch (error) {
-                console.error(`Ошибка отправки голоса:`, error.message);
-            }
+        if (id !== fromUserId && client.roomId === roomId && client.ws?.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify({
+                type: 'voice_data',
+                from: fromUserId,
+                audio: audioData,
+                volume: volume
+            }));
         }
     }
-    return sentCount;
 }
 
-// Функция обновления онлайн-счетчика
 function broadcastOnlineCount() {
     const onlineCount = clients.size;
     for (let [id, client] of clients.entries()) {
-        try {
-            if (client.ws && client.ws.readyState === WebSocket.OPEN) {
-                client.ws.send(JSON.stringify({ type: 'online_count', count: onlineCount }));
-            }
-        } catch (error) {
-            console.error(`Ошибка отправки счетчика:`, error.message);
+        if (client.ws?.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify({ type: 'online_count', count: onlineCount }));
         }
     }
     console.log(`📊 Онлайн: ${onlineCount} пользователей`);
 }
 
-// Очистка неактивных соединений
-setInterval(() => {
-    const now = Date.now();
-    let inactiveCount = 0;
-    
-    for (let [id, client] of clients.entries()) {
-        if (now - client.lastActivity > VOICE_CONFIG.activityTimeout) {
-            console.log(`⏰ Отключение неактивного: ${id}`);
-            if (client.ws && client.ws.readyState === WebSocket.OPEN) {
-                client.ws.close();
-            }
-            clients.delete(id);
-            inactiveCount++;
-        }
-    }
-    
-    if (inactiveCount > 0) {
-        broadcastOnlineCount();
-    }
-}, 60000);
-
 // WebSocket соединение
 wss.on('connection', (ws, req) => {
     let userStaticId = null;
     let currentRoom = null;
-    let lastVoiceActivity = Date.now();
-    let voiceFrames = 0;
-    
     const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     console.log(`🔌 Новое соединение от ${clientIp}`);
 
@@ -209,7 +370,6 @@ wss.on('connection', (ws, req) => {
         try {
             const msg = JSON.parse(data);
             
-            // Аутентификация
             if (msg.type === 'auth') {
                 userStaticId = msg.staticId;
                 
@@ -219,53 +379,22 @@ wss.on('connection', (ws, req) => {
                     return;
                 }
                 
-                // Проверяем пользователя в БД
-                const conn = await db.promise().getConnection();
-                try {
-                    const [rows] = await conn.query("SELECT * FROM users WHERE static_id = ?", [userStaticId]);
-                    if (rows.length === 0) {
-                        ws.send(JSON.stringify({ type: 'error', message: 'Пользователь не найден' }));
-                        ws.close();
-                        return;
-                    }
-                    
-                    // Проверяем бан
-                    if (rows[0].is_banned && rows[0].unban_date && new Date(rows[0].unban_date) > new Date()) {
-                        ws.send(JSON.stringify({ 
-                            type: 'error', 
-                            message: `Вы забанены до ${rows[0].unban_date}`
-                        }));
-                        ws.close();
-                        return;
-                    }
-                    
-                    // Обновляем last_seen
-                    await conn.query("UPDATE users SET last_seen = NOW() WHERE static_id = ?", [userStaticId]);
-                    
-                } finally {
-                    conn.release();
+                // Проверяем пользователя
+                const [rows] = await db.promise().query("SELECT * FROM users WHERE static_id = ?", [userStaticId]);
+                if (rows.length === 0) {
+                    ws.send(JSON.stringify({ type: 'error', message: 'Пользователь не найден' }));
+                    ws.close();
+                    return;
                 }
                 
-                // Сохраняем клиента
-                clients.set(userStaticId, { 
-                    ws, 
-                    roomId: null, 
-                    lastActivity: Date.now(),
-                    ip: clientIp
-                });
-                
+                clients.set(userStaticId, { ws, roomId: null, lastActivity: Date.now() });
                 broadcastOnlineCount();
                 console.log(`✅ Авторизован: ${userStaticId}`);
                 ws.send(JSON.stringify({ type: 'auth_success', staticId: userStaticId }));
             }
             
-            // Присоединение к комнате
             else if (msg.type === 'join_room') {
-                if (!userStaticId) {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Не авторизован' }));
-                    return;
-                }
-                
+                if (!userStaticId) return;
                 currentRoom = msg.roomId;
                 const client = clients.get(userStaticId);
                 if (client) {
@@ -273,205 +402,99 @@ wss.on('connection', (ws, req) => {
                     client.lastActivity = Date.now();
                 }
                 
-                // Отправляем список участников
-                const members = [];
-                for (let [id, clientInfo] of clients.entries()) {
-                    if (clientInfo.roomId === currentRoom && id !== userStaticId) {
-                        members.push(id);
-                    }
-                }
+                // Добавляем в БД
+                await db.promise().query(
+                    "INSERT IGNORE INTO room_members (room_id, user_static_id) VALUES (?, ?)",
+                    [currentRoom, userStaticId]
+                );
                 
-                ws.send(JSON.stringify({
-                    type: 'members_list',
-                    members: members
-                }));
-                
-                // Уведомляем всех в комнате
+                ws.send(JSON.stringify({ type: 'joined', roomId: currentRoom }));
                 notifyRoomMembers(currentRoom, 'user_joined', userStaticId);
                 console.log(`🎤 ${userStaticId} присоединился к комнате ${currentRoom}`);
             }
             
-            // Голосовые данные
             else if (msg.type === 'voice_data') {
                 if (!userStaticId || !currentRoom) return;
                 
                 const client = clients.get(userStaticId);
-                if (client) {
-                    client.lastActivity = Date.now();
-                }
+                if (client) client.lastActivity = Date.now();
                 
-                const audioData = msg.audio;
                 let volume = 0;
-                if (audioData && audioData.length > 0) {
-                    for (let i = 0; i < audioData.length; i++) {
-                        volume += Math.abs(audioData[i]);
-                    }
-                    volume /= audioData.length;
-                } else if (msg.volume) {
-                    volume = msg.volume / 100;
+                if (msg.audio) {
+                    for (let i = 0; i < msg.audio.length; i++) volume += Math.abs(msg.audio[i]);
+                    volume /= msg.audio.length;
                 }
                 
                 if (volume > VOICE_CONFIG.minVolume) {
-                    lastVoiceActivity = Date.now();
-                    voiceFrames++;
-                    
-                    if (voiceFrames % 5 === 0) {
-                        notifyRoomMembers(currentRoom, 'speaking', userStaticId, { volume: volume });
-                    }
-                    
-                    broadcastVoice(currentRoom, userStaticId, audioData, volume);
-                    
-                    if (voiceFrames % 100 === 0) {
-                        console.log(`🎙️ ${userStaticId}: отправлено ${voiceFrames} фреймов`);
-                    }
+                    broadcastVoice(currentRoom, userStaticId, msg.audio, volume);
                 }
             }
             
-            // Текстовые сообщения
             else if (msg.type === 'text_message') {
                 if (!userStaticId || !currentRoom) return;
                 
-                const client = clients.get(userStaticId);
-                if (client) {
-                    client.lastActivity = Date.now();
-                }
-                
-                const textMessage = {
-                    type: 'text_message',
-                    from: userStaticId,
-                    message: msg.message.substring(0, 500),
-                    timestamp: Date.now()
-                };
-                
-                for (let [id, clientInfo] of clients.entries()) {
-                    if (clientInfo.roomId === currentRoom) {
-                        try {
-                            if (clientInfo.ws && clientInfo.ws.readyState === WebSocket.OPEN) {
-                                clientInfo.ws.send(JSON.stringify(textMessage));
-                            }
-                        } catch (error) {
-                            console.error(`Ошибка отправки сообщения:`, error.message);
-                        }
+                for (let [id, client] of clients.entries()) {
+                    if (client.roomId === currentRoom && client.ws?.readyState === WebSocket.OPEN) {
+                        client.ws.send(JSON.stringify({
+                            type: 'text_message',
+                            from: userStaticId,
+                            message: msg.message
+                        }));
                     }
                 }
-                
-                console.log(`💬 ${userStaticId}: "${msg.message.substring(0, 50)}"`);
+                console.log(`💬 ${userStaticId}: ${msg.message.substring(0, 50)}`);
             }
             
-            // Выход из комнаты
             else if (msg.type === 'leave_room') {
                 if (!userStaticId) return;
                 
                 if (currentRoom) {
+                    await db.promise().query(
+                        "DELETE FROM room_members WHERE room_id = ? AND user_static_id = ?",
+                        [currentRoom, userStaticId]
+                    );
                     notifyRoomMembers(currentRoom, 'user_left', userStaticId);
                     console.log(`🚪 ${userStaticId} покинул комнату ${currentRoom}`);
                     
                     const client = clients.get(userStaticId);
-                    if (client) {
-                        client.roomId = null;
-                    }
+                    if (client) client.roomId = null;
                     currentRoom = null;
                 }
             }
             
-            // Ping/Pong
             else if (msg.type === 'ping') {
-                if (userStaticId) {
-                    const client = clients.get(userStaticId);
-                    if (client) {
-                        client.lastActivity = Date.now();
-                    }
-                }
-                ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
-            }
-            
-            // Тест микрофона
-            else if (msg.type === 'volume_test') {
-                if (!userStaticId) return;
-                
-                const audioData = msg.audio;
-                let volume = 0;
-                if (audioData && audioData.length > 0) {
-                    for (let i = 0; i < audioData.length; i++) {
-                        volume += Math.abs(audioData[i]);
-                    }
-                    volume /= audioData.length;
-                }
-                
-                ws.send(JSON.stringify({
-                    type: 'volume_result',
-                    volume: volume,
-                    isWorking: volume > VOICE_CONFIG.minVolume,
-                    message: volume > VOICE_CONFIG.minVolume ? 'Микрофон работает' : 'Громкость низкая'
-                }));
-            }
-            
-            // Получение списка участников
-            else if (msg.type === 'get_members') {
-                if (!userStaticId || !currentRoom) return;
-                
-                const members = [];
-                for (let [id, clientInfo] of clients.entries()) {
-                    if (clientInfo.roomId === currentRoom) {
-                        members.push(id);
-                    }
-                }
-                
-                ws.send(JSON.stringify({
-                    type: 'members_list',
-                    members: members
-                }));
+                ws.send(JSON.stringify({ type: 'pong' }));
             }
             
         } catch (error) {
-            console.error('Ошибка обработки:', error.message);
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'error', message: 'Ошибка сервера' }));
-            }
+            console.error('Ошибка:', error.message);
         }
     });
     
-    ws.on('error', (error) => {
-        console.error(`WebSocket ошибка:`, error.message);
-    });
-    
-    ws.on('close', (code, reason) => {
+    ws.on('close', () => {
         if (userStaticId) {
-            console.log(`❌ Отключение ${userStaticId}, код: ${code}`);
-            
-            if (clients.has(userStaticId)) {
-                const roomId = clients.get(userStaticId).roomId;
-                if (roomId) {
-                    notifyRoomMembers(roomId, 'user_left', userStaticId);
-                }
-                clients.delete(userStaticId);
-            }
-            
+            console.log(`❌ Отключение ${userStaticId}`);
+            clients.delete(userStaticId);
             broadcastOnlineCount();
         }
     });
 });
 
-// Запуск сервера
+// ============================================
+// ЗАПУСК СЕРВЕРА
+// ============================================
 server.listen(port, '0.0.0.0', () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ Harmony Chat сервер запущен!');
-    console.log(`🌐 HTTP: http://0.0.0.0:${port}`);
-    console.log(`🔌 WebSocket: ws://0.0.0.0:${port}`);
-    console.log(`🖥️ Режим: ${process.env.RAILWAY_ENVIRONMENT ? 'Railway Cloud' : 'Local'}`);
-    if (process.env.RAILWAY_ENVIRONMENT) {
-        console.log(`🔗 URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN || 'ваш-домен'}`);
-    }
+    console.log(`🌐 URL: https://harmonychat.up.railway.app`);
+    console.log(`🔌 Порт: ${port}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 });
 
-// Обработка завершения процесса
 process.on('SIGTERM', () => {
-    console.log('🛑 Получен SIGTERM, закрываем соединения...');
+    console.log('🛑 Завершение работы...');
     for (let [id, client] of clients.entries()) {
-        if (client.ws && client.ws.readyState === WebSocket.OPEN) {
-            client.ws.close();
-        }
+        if (client.ws?.readyState === WebSocket.OPEN) client.ws.close();
     }
     clients.clear();
     process.exit(0);

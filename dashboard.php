@@ -1,0 +1,122 @@
+<?php
+require_once 'config.php';
+if (!isset($_SESSION['user_id'])) {
+    header('Location: index.html');
+    exit;
+}
+$userStatic = $_SESSION['static_id'];
+$isAdmin = $_SESSION['is_admin'];
+?>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Harmony Chat - Голосовой чат</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .delete-room-btn {
+            background: #f44336;
+            padding: 4px 10px;
+            font-size: 12px;
+            margin-left: 10px;
+            width: auto;
+        }
+        .delete-room-btn:hover {
+            background: #d32f2f;
+        }
+        .room-item {
+            position: relative;
+        }
+        .room-actions {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .test-mic-btn {
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+        }
+        .test-mic-btn:hover {
+            background: linear-gradient(135deg, #1976D2, #1565C0);
+        }
+        .voice-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .voice-controls button {
+            flex: 1;
+            min-width: 120px;
+        }
+        @media (max-width: 600px) {
+            .voice-controls button {
+                min-width: calc(50% - 5px);
+            }
+            .room-actions {
+                flex-direction: column;
+            }
+            .delete-room-btn {
+                margin-left: 0;
+                margin-top: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="user-data" data-static-id="<?= $userStatic ?>" style="display:none"></div>
+    
+    <div class="dashboard">
+        <div class="header">
+            <h2>🎙️ Harmony Chat</h2>
+            <div class="online-counter">👥 Онлайн: <span id="global-online">0</span></div>
+            <div class="header-buttons">
+                <?php if($isAdmin): ?>
+                    <a href="admin.php" class="admin-btn">🔧 Админ-панель</a>
+                <?php endif; ?>
+                <a href="logout.php" class="logout">🚪 Выйти</a>
+            </div>
+        </div>
+        
+        <div class="main-panel">
+            <div class="rooms-sidebar">
+                <div class="create-room-form">
+                    <h3>➕ Создать комнату</h3>
+                    <input type="text" id="room-name" placeholder="Название комнаты" maxlength="50">
+                    <input type="number" id="room-max" placeholder="Макс. участников" value="10" min="1" max="50">
+                    <select id="room-type">
+                        <option value="voice">🎤 Голосовая</option>
+                        <option value="text">💬 Текстовая</option>
+                    </select>
+                    <button onclick="createRoom()">Создать комнату</button>
+                </div>
+                
+                <div class="rooms-list-container">
+                    <h3>📢 Доступные комнаты</h3>
+                    <div id="rooms-list"></div>
+                </div>
+            </div>
+            
+            <div class="chat-area">
+                <div id="current-room-info"></div>
+                
+                <div id="messages" class="messages">
+                    <div class="system-message">🔔 Добро пожаловать в Harmony Chat! Выберите или создайте комнату.</div>
+                </div>
+                
+                <div id="voice-controls" class="voice-controls" style="display:none">
+                    <button id="test-mic-btn" class="test-mic-btn" onclick="testMicrophone()">🎤 Проверить микрофон</button>
+                    <button id="mute-btn" class="mic-btn">🎤 Включить микрофон</button>
+                    <button id="leave-room" class="leave-btn">🚪 Покинуть комнату</button>
+                </div>
+                
+                <div id="text-input" class="text-input-area" style="display:none">
+                    <input type="text" id="text-msg" placeholder="Введите сообщение..." maxlength="500">
+                    <button onclick="sendTextMessage()">📨 Отправить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>

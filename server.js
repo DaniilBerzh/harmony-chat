@@ -1,8 +1,73 @@
+const express = require('express');
+const http = require('http');
 const WebSocket = require('ws');
+const path = require('path');
 const mysql = require('mysql2');
 
-// Определяем порт (Railway дает PORT или используем 8080)
+// Создаем Express приложение
+const app = express();
 const port = process.env.PORT || 8080;
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(__dirname));
+
+// Логирование запросов
+app.use((req, res, next) => {
+    console.log(`📝 ${req.method} ${req.url}`);
+    next();
+});
+
+// Маршруты для HTML/PHP файлов
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/index.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/dashboard.php', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dashboard.php'));
+});
+
+app.get('/admin.php', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin.php'));
+});
+
+app.get('/style.css', (req, res) => {
+    res.sendFile(path.join(__dirname, 'style.css'));
+});
+
+app.get('/script.js', (req, res) => {
+    res.sendFile(path.join(__dirname, 'script.js'));
+});
+
+// POST маршруты для PHP файлов
+app.post('/register.php', (req, res) => {
+    res.sendFile(path.join(__dirname, 'register.php'));
+});
+
+app.post('/login.php', (req, res) => {
+    res.sendFile(path.join(__dirname, 'login.php'));
+});
+
+app.post('/api.php', (req, res) => {
+    res.sendFile(path.join(__dirname, 'api.php'));
+});
+
+app.get('/api.php', (req, res) => {
+    res.sendFile(path.join(__dirname, 'api.php'));
+});
+
+// Все остальные GET запросы
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Создаем HTTP сервер
+const server = http.createServer(app);
 
 // Настройки базы данных из переменных окружения Railway
 const dbConfig = {
@@ -24,14 +89,13 @@ const db = mysql.createPool(dbConfig);
 db.getConnection((err, connection) => {
     if (err) {
         console.error('❌ Ошибка подключения к MySQL:', err.message);
-        console.log('📝 Переменные окружения Railway должны автоматически подставить параметры MySQL');
     } else {
         console.log('✅ Подключение к MySQL успешно!');
         connection.release();
     }
 });
 
-let clients = new Map(); // static_id -> { ws, roomId, lastActivity }
+let clients = new Map();
 
 // Настройки для голоса
 const VOICE_CONFIG = {
@@ -41,15 +105,12 @@ const VOICE_CONFIG = {
     activityTimeout: 300000
 };
 
-console.log('🎙️ Запуск WebSocket сервера Harmony Chat...');
+console.log('🎙️ Запуск Harmony Chat сервера...');
 console.log(`📡 Порт: ${port}`);
 console.log(`🖥️ Режим: ${process.env.RAILWAY_ENVIRONMENT ? 'Railway Cloud' : 'Local Development'}`);
 
-// Создаем WebSocket сервер на ВСЕХ интерфейсах (важно для Railway)
-const wss = new WebSocket.Server({ 
-    port: port,
-    host: '0.0.0.0'  // Принимаем соединения со всех интерфейсов
-});
+// Создаем WebSocket сервер
+const wss = new WebSocket.Server({ server });
 
 // Функция отправки сообщения всем в комнате
 function notifyRoomMembers(roomId, event, userId, extraData = null) {
@@ -226,7 +287,7 @@ wss.on('connection', (ws, req) => {
                 }));
                 
                 // Уведомляем всех в комнате
-                const sentCount = notifyRoomMembers(currentRoom, 'user_joined', userStaticId);
+                notifyRoomMembers(currentRoom, 'user_joined', userStaticId);
                 console.log(`🎤 ${userStaticId} присоединился к комнате ${currentRoom}`);
             }
             
@@ -258,7 +319,7 @@ wss.on('connection', (ws, req) => {
                         notifyRoomMembers(currentRoom, 'speaking', userStaticId, { volume: volume });
                     }
                     
-                    const sentCount = broadcastVoice(currentRoom, userStaticId, audioData, volume);
+                    broadcastVoice(currentRoom, userStaticId, audioData, volume);
                     
                     if (voiceFrames % 100 === 0) {
                         console.log(`🎙️ ${userStaticId}: отправлено ${voiceFrames} фреймов`);
@@ -282,13 +343,11 @@ wss.on('connection', (ws, req) => {
                     timestamp: Date.now()
                 };
                 
-                let sentCount = 0;
                 for (let [id, clientInfo] of clients.entries()) {
                     if (clientInfo.roomId === currentRoom) {
                         try {
                             if (clientInfo.ws && clientInfo.ws.readyState === WebSocket.OPEN) {
                                 clientInfo.ws.send(JSON.stringify(textMessage));
-                                sentCount++;
                             }
                         } catch (error) {
                             console.error(`Ошибка отправки сообщения:`, error.message);
@@ -304,7 +363,7 @@ wss.on('connection', (ws, req) => {
                 if (!userStaticId) return;
                 
                 if (currentRoom) {
-                    const sentCount = notifyRoomMembers(currentRoom, 'user_left', userStaticId);
+                    notifyRoomMembers(currentRoom, 'user_left', userStaticId);
                     console.log(`🚪 ${userStaticId} покинул комнату ${currentRoom}`);
                     
                     const client = clients.get(userStaticId);
@@ -364,18 +423,6 @@ wss.on('connection', (ws, req) => {
                 }));
             }
             
-            // Удаление комнаты
-            else if (msg.type === 'room_deleted') {
-                // Оповещаем всех в комнате
-                if (currentRoom === msg.roomId) {
-                    ws.send(JSON.stringify({ type: 'room_closed', message: 'Комната удалена' }));
-                    currentRoom = null;
-                    if (clients.has(userStaticId)) {
-                        clients.get(userStaticId).roomId = null;
-                    }
-                }
-            }
-            
         } catch (error) {
             console.error('Ошибка обработки:', error.message);
             if (ws.readyState === WebSocket.OPEN) {
@@ -385,7 +432,7 @@ wss.on('connection', (ws, req) => {
     });
     
     ws.on('error', (error) => {
-        console.error(`WebSocket ошибка для ${userStaticId || 'unknown'}:`, error.message);
+        console.error(`WebSocket ошибка:`, error.message);
     });
     
     ws.on('close', (code, reason) => {
@@ -406,25 +453,19 @@ wss.on('connection', (ws, req) => {
 });
 
 // Запуск сервера
-wss.on('listening', () => {
+server.listen(port, '0.0.0.0', () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('✅ WebSocket сервер Harmony Chat запущен!');
-    console.log(`📡 Адрес: ws://0.0.0.0:${port}`);
-    console.log(`🔄 WebSocket готов к подключениям`);
+    console.log('✅ Harmony Chat сервер запущен!');
+    console.log(`🌐 HTTP: http://0.0.0.0:${port}`);
+    console.log(`🔌 WebSocket: ws://0.0.0.0:${port}`);
+    console.log(`🖥️ Режим: ${process.env.RAILWAY_ENVIRONMENT ? 'Railway Cloud' : 'Local'}`);
     if (process.env.RAILWAY_ENVIRONMENT) {
-        console.log(`☁️ Режим: Railway Cloud`);
-        console.log(`🔗 URL будет доступен по домену Railway`);
+        console.log(`🔗 URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN || 'ваш-домен'}`);
     }
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 });
 
-wss.on('error', (error) => {
-    console.error('❌ Серверная ошибка:', error.message);
-});
-
-console.log('🚀 Запуск WebSocket сервера...');
-
-// Обработка завершения процесса (для Railway)
+// Обработка завершения процесса
 process.on('SIGTERM', () => {
     console.log('🛑 Получен SIGTERM, закрываем соединения...');
     for (let [id, client] of clients.entries()) {

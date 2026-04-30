@@ -86,7 +86,6 @@ async function initDatabase() {
                 name VARCHAR(50) NOT NULL,
                 type VARCHAR(10) DEFAULT 'voice',
                 max_people INT DEFAULT 10,
-                created_by VARCHAR(10),
                 is_active BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -134,7 +133,6 @@ db.getConnection((err, connection) => {
 // ФУНКЦИИ WEBSOCKET
 // ============================================
 
-// Отправка сообщения всем в комнате
 function broadcastToRoom(roomId, message) {
     for (let [id, client] of clients.entries()) {
         if (client.roomId === roomId && client.ws?.readyState === WebSocket.OPEN) {
@@ -143,7 +141,6 @@ function broadcastToRoom(roomId, message) {
     }
 }
 
-// Обновление онлайн-счетчика для всех
 async function broadcastOnlineCount() {
     try {
         const [rows] = await db.promise().query(
@@ -156,17 +153,6 @@ async function broadcastOnlineCount() {
                 client.ws.send(JSON.stringify({ type: 'online_count', count: totalOnline }));
             }
         }
-    } catch(e) {}
-}
-
-// Обновление онлайна в конкретной комнате
-async function updateRoomOnlineCount(roomId) {
-    try {
-        const [rows] = await db.promise().query(
-            "SELECT COUNT(*) as count FROM room_members WHERE room_id = ?",
-            [roomId]
-        );
-        broadcastToRoom(roomId, { type: 'room_online_count', count: rows[0].count });
     } catch(e) {}
 }
 
@@ -285,20 +271,20 @@ app.get('/api/online', async (req, res) => {
     }
 });
 
-// Создать комнату
+// Создать комнату (БЕЗ created_by)
 app.post('/api/rooms', async (req, res) => {
     console.log('📝 Создание комнаты:', req.body);
     
     try {
-        const { name, max_people, type, created_by } = req.body;
+        const { name, max_people, type } = req.body;
         
         if (!name) {
             return res.json({ success: false, error: 'Название комнаты обязательно' });
         }
         
         const [result] = await db.promise().query(
-            "INSERT INTO rooms (name, max_people, type, created_by) VALUES (?, ?, ?, ?)",
-            [name, max_people || 10, type || 'voice', created_by || 'system']
+            "INSERT INTO rooms (name, max_people, type) VALUES (?, ?, ?)",
+            [name, max_people || 10, type || 'voice']
         );
         
         res.json({ success: true, room_id: result.insertId, room_name: name });
@@ -339,10 +325,6 @@ app.post('/api/rooms/:id/join', async (req, res) => {
             [roomId, user_static_id]
         );
         
-        // Обновляем онлайн в комнате
-        await updateRoomOnlineCount(roomId);
-        
-        // Оповещаем всех в комнате
         broadcastToRoom(parseInt(roomId), {
             type: 'user_joined',
             userId: user_static_id
@@ -368,10 +350,6 @@ app.post('/api/rooms/:id/leave', async (req, res) => {
             [roomId, user_static_id]
         );
         
-        // Обновляем онлайн в комнате
-        await updateRoomOnlineCount(roomId);
-        
-        // Оповещаем всех в комнате
         broadcastToRoom(parseInt(roomId), {
             type: 'user_left',
             userId: user_static_id
@@ -391,19 +369,12 @@ app.delete('/api/rooms/:id', async (req, res) => {
     try {
         const roomId = req.params.id;
         
-        // Получаем название комнаты
-        const [room] = await db.promise().query("SELECT name FROM rooms WHERE id = ?", [roomId]);
-        
-        // Удаляем всех участников
         await db.promise().query("DELETE FROM room_members WHERE room_id = ?", [roomId]);
-        // Удаляем комнату
         await db.promise().query("DELETE FROM rooms WHERE id = ?", [roomId]);
         
-        // Оповещаем всех кто был в комнате
         broadcastToRoom(parseInt(roomId), {
             type: 'room_deleted',
-            roomId: roomId,
-            message: 'Комната удалена'
+            roomId: roomId
         });
         
         res.json({ success: true });
@@ -454,7 +425,7 @@ app.get('/style.css', (req, res) => { res.sendFile(path.join(__dirname, 'style.c
 app.get('/script.js', (req, res) => { res.sendFile(path.join(__dirname, 'script.js')); });
 
 // ============================================
-// WEBSOCKET (ОПТИМИЗИРОВАННЫЙ)
+// WEBSOCKET
 // ============================================
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -501,7 +472,6 @@ wss.on('connection', (ws) => {
             else if (msg.type === 'voice_data') {
                 if (!currentRoom) return;
                 
-                // Быстрая пересылка без задержек
                 for (let [id, client] of clients.entries()) {
                     if (client.roomId === currentRoom && id !== userStaticId) {
                         if (client.ws?.readyState === WebSocket.OPEN) {

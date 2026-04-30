@@ -4,276 +4,291 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Админ-панель - Harmony Chat</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23764ba2'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white'%3E🎤%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="style.css">
     <style>
+        :root {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --bg-sidebar: #f9f9f9;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #dddddd;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --gradient-start: #667eea;
+            --gradient-end: #764ba2;
+        }
+        [data-theme="dark"] {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --bg-sidebar: #252525;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --border-color: #404040;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
         .admin-container {
             max-width: 1400px;
-            margin: 20px auto;
-            padding: 20px;
+            margin: 0 auto;
             background: var(--bg-secondary);
             border-radius: 20px;
             box-shadow: var(--shadow);
+            overflow: hidden;
         }
+        
         .admin-header {
+            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            padding: 20px;
+            color: white;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid var(--border-color);
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 15px;
         }
-        .admin-tabs {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--border-color);
-        }
-        .admin-tabs button {
-            width: auto;
-            padding: 10px 20px;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .admin-tabs button:hover {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-        .tab-content {
-            background: var(--bg-sidebar);
-            padding: 20px;
-            border-radius: 15px;
-            animation: fadeIn 0.3s ease;
-        }
-        table {
+        
+        .admin-header h1 { font-size: 1.5rem; }
+        .admin-tabs { display: flex; flex-wrap: wrap; gap: 10px; padding: 15px 20px; background: var(--bg-primary); border-bottom: 1px solid var(--border-color); }
+        .admin-tabs button { padding: 10px 20px; background: var(--bg-secondary); color: var(--text-primary); border: none; border-radius: 10px; cursor: pointer; transition: all 0.3s; }
+        .admin-tabs button:hover { background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end)); color: white; }
+        .tab-content { padding: 20px; display: none; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+        
+        table { width: 100%; border-collapse: collapse; background: var(--bg-secondary); border-radius: 10px; overflow: hidden; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-color); color: var(--text-primary); }
+        th { background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end)); color: white; }
+        tr:hover { background: var(--bg-primary); }
+        
+        .console-output { background: #1e1e1e; color: #0f0; padding: 15px; font-family: monospace; margin-top: 15px; border-radius: 8px; max-height: 400px; overflow-y: auto; font-size: 13px; }
+        .console-input { display: flex; gap: 10px; margin-bottom: 15px; }
+        .console-input input { flex: 1; padding: 12px; background: var(--bg-primary); border: 2px solid var(--border-color); border-radius: 10px; color: var(--text-primary); font-family: monospace; }
+        .search-input { width: 300px; margin-bottom: 15px; padding: 10px; border: 2px solid var(--border-color); border-radius: 10px; background: var(--bg-primary); color: var(--text-primary); }
+        
+        .action-btn { padding: 5px 10px; margin: 2px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; }
+        .btn-ban { background: #f44336; color: white; }
+        .btn-unban { background: #4CAF50; color: white; }
+        .btn-makeadmin { background: #ff9800; color: white; }
+        .btn-removeadmin { background: #f44336; color: white; }
+        
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            border-collapse: collapse;
-            background: var(--bg-secondary);
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-            color: var(--text-primary);
-        }
-        th {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-        tr:hover {
-            background: var(--bg-primary);
-        }
-        .console-output {
-            background: #1e1e1e;
-            color: #0f0;
-            padding: 15px;
-            font-family: 'Courier New', monospace;
-            margin-top: 15px;
-            border-radius: 8px;
-            max-height: 400px;
-            overflow-y: auto;
-            font-size: 13px;
-        }
-        .console-input {
+            height: 100%;
+            background: rgba(0,0,0,0.8);
             display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
         }
-        .console-input input {
-            flex: 1;
-            padding: 12px;
-            background: var(--bg-primary);
-            border: 2px solid var(--border-color);
-            border-radius: 10px;
-            color: var(--text-primary);
-            font-family: monospace;
+        .login-box {
+            background: var(--bg-secondary);
+            padding: 30px;
+            border-radius: 20px;
+            width: 350px;
+            text-align: center;
         }
-        .search-input {
-            width: 300px;
-            margin-bottom: 15px;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @media (max-width: 768px) {
-            .admin-tabs button {
-                font-size: 12px;
-                padding: 8px 12px;
-            }
-            table {
-                font-size: 12px;
-            }
-            th, td {
-                padding: 8px;
-            }
-        }
+        .login-box input { width: 100%; padding: 12px; margin: 10px 0; border: 2px solid var(--border-color); border-radius: 10px; }
+        .error { color: #f44336; margin-top: 10px; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @media (max-width: 768px) { .admin-tabs button { font-size: 12px; padding: 8px 12px; } table { font-size: 12px; } th, td { padding: 8px; } }
     </style>
 </head>
 <body>
-    <div class="admin-container">
-        <div class="admin-header">
-            <h1>🔧 Админ-панель Harmony Chat</h1>
-            <div class="header-buttons">
-                <a href="/dashboard.html" class="admin-btn" style="background: #4CAF50;">🏠 На главную</a>
-                <a href="/logout.html" class="logout">🚪 Выйти</a>
-            </div>
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-box">
+            <h2>🔐 Вход в админ-панель</h2>
+            <input type="password" id="admin-password" placeholder="Введите пароль администратора">
+            <button onclick="checkAdminLogin()">Войти</button>
+            <div id="login-error" class="error"></div>
+            <a href="/dashboard.html" style="display: block; margin-top: 15px; color: var(--text-secondary);">← На главную</a>
         </div>
-        
-        <div class="admin-tabs">
-            <button onclick="showTab('logs')">📜 Логи сайта</button>
-            <button onclick="showTab('users')">👥 Все пользователи</button>
-            <button onclick="showTab('bans')">⛔ Бан-лист</button>
-            <button onclick="showTab('console')">💻 Консоль</button>
-            <button onclick="showTab('reports')">📋 Репорты</button>
-            <button onclick="showTab('rooms')">🏠 Комнаты</button>
-        </div>
-        
-        <!-- Логи -->
-        <div id="logs-tab" class="tab-content">
-            <h3>📜 Логи действий</h3>
-            <div id="logs-table" style="overflow-x: auto;">
-                <table>
-                    <thead>
-                        <tr><th>Время</th><th>Действие</th><th>Пользователь</th><th>Цель</th><th>Детали</th>
-                        </tr>
-                    </thead>
-                    <tbody id="logs-list">
-                        <tr><td colspan="5">Загрузка...</td></tr>
-                    </tbody>
-                </table>
+    </div>
+    
+    <div id="admin-content" style="display: none;">
+        <div class="admin-container">
+            <div class="admin-header">
+                <h1>🔧 Админ-панель Harmony Chat</h1>
+                <div class="header-buttons">
+                    <span id="admin-name" style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 10px;"></span>
+                    <button onclick="logoutAdmin()" style="background: #f44336; border: none; color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer;">🚪 Выйти</button>
+                </div>
             </div>
-        </div>
-        
-        <!-- Все пользователи -->
-        <div id="users-tab" class="tab-content" style="display:none">
-            <h3>👥 Список пользователей</h3>
-            <input type="text" id="searchUser" class="search-input" placeholder="🔍 Поиск по Static ID" onkeyup="searchUsers()">
-            <div id="users-table" style="overflow-x: auto;">
-                <table>
-                    <thead>
-                        <tr><th>Static ID</th><th>Возраст</th><th>Статус</th><th>Админ</th><th>Онлайн</th>
-                        </tr>
-                    </thead>
-                    <tbody id="users-list">
-                        <tr><td colspan="5">Загрузка...</td></tr>
-                    </tbody>
-                </table>
+            
+            <div class="admin-tabs">
+                <button onclick="showTab('logs')">📜 Логи сайта</button>
+                <button onclick="showTab('users')">👥 Все пользователи</button>
+                <button onclick="showTab('bans')">⛔ Бан-лист</button>
+                <button onclick="showTab('console')">💻 Консоль</button>
+                <button onclick="showTab('reports')">📋 Репорты</button>
+                <button onclick="showTab('rooms')">🏠 Комнаты</button>
+                <button onclick="showTab('admins')">👑 Управление админами</button>
             </div>
-        </div>
-        
-        <!-- Бан-лист -->
-        <div id="bans-tab" class="tab-content" style="display:none">
-            <h3>⛔ Бан-лист</h3>
-            <div id="bans-table" style="overflow-x: auto;">
-                <table>
-                    <thead>
-                        <tr><th>Пользователь</th><th>Кто забанил</th><th>Причина</th><th>Дата бана</th><th>Дата разбана</th>
-                        </tr>
-                    </thead>
-                    <tbody id="bans-list">
-                        <tr><td colspan="5">Загрузка...</td></tr>
-                    </tbody>
-                </table>
+            
+            <!-- Логи -->
+            <div id="logs-tab" class="tab-content">
+                <h3>📜 Логи действий</h3>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead><tr><th>Время</th><th>Действие</th><th>Пользователь</th><th>Цель</th><th>Детали</th></tr></thead>
+                        <tbody id="logs-list"><tr><td colspan="5">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        
-        <!-- Консоль -->
-        <div id="console-tab" class="tab-content" style="display:none">
-            <h3>💻 Консоль команд</h3>
-            <div class="console-input">
-                <input type="text" id="console-command" placeholder="/ban ID_статик дни причина  |  /mute ID_статик часы минуты секунды  |  /warn ID_статик дни">
-                <button onclick="executeCommand()">Выполнить</button>
+            
+            <!-- Пользователи -->
+            <div id="users-tab" class="tab-content">
+                <h3>👥 Список пользователей</h3>
+                <input type="text" id="searchUser" class="search-input" placeholder="🔍 Поиск по Static ID" onkeyup="searchUsers()">
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead><tr><th>Static ID</th><th>Возраст</th><th>Статус</th><th>Админ</th><th>Онлайн</th><th>Действия</th></tr></thead>
+                        <tbody id="users-list"><tr><td colspan="6">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
             </div>
-            <div id="console-output" class="console-output">
-                > Готов к работе<br>
-                > Введите команду и нажмите Enter
+            
+            <!-- Бан-лист -->
+            <div id="bans-tab" class="tab-content">
+                <h3>⛔ Бан-лист</h3>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead><tr><th>Пользователь</th><th>Кто забанил</th><th>Причина</th><th>Дата бана</th><th>Дата разбана</th></tr></thead>
+                        <tbody id="bans-list"><tr><td colspan="5">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        
-        <!-- Репорты -->
-        <div id="reports-tab" class="tab-content" style="display:none">
-            <h3>📋 Жалобы пользователей</h3>
-            <div id="reports-table" style="overflow-x: auto;">
-                <table>
-                    <thead>
-                        <tr><th>#</th><th>От кого</th><th>На кого</th><th>Причина</th><th>Статус</th><th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reports-list">
-                        <tr><td colspan="6">Загрузка...</td></tr>
-                    </tbody>
-                </table>
+            
+            <!-- Консоль -->
+            <div id="console-tab" class="tab-content">
+                <h3>💻 Консоль команд</h3>
+                <div class="console-input">
+                    <input type="text" id="console-command" placeholder="/ban ID_статик дни причина | /unban ID_статик | /makeadmin ID_статик | /removeadmin ID_статик">
+                    <button onclick="executeCommand()">Выполнить</button>
+                </div>
+                <div id="console-output" class="console-output">
+                    > Добро пожаловать в админ-консоль<br>
+                    > Доступные команды:<br>
+                    > /ban #123456 7 Причина - бан на 7 дней<br>
+                    > /unban #123456 - разбан пользователя<br>
+                    > /makeadmin #123456 - назначить администратором<br>
+                    > /removeadmin #123456 - снять права администратора<br>
+                    > /roomdelete ID - удалить комнату
+                </div>
             </div>
-        </div>
-        
-        <!-- Комнаты -->
-        <div id="rooms-tab" class="tab-content" style="display:none">
-            <h3>🏠 Управление комнатами</h3>
-            <div id="admin-rooms-table" style="overflow-x: auto;">
-                <table>
-                    <thead>
-                        <tr><th>ID</th><th>Название</th><th>Тип</th><th>Макс</th><th>Создатель</th><th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody id="admin-rooms-list">
-                        <tr><td colspan="6">Загрузка...</td></tr>
-                    </tbody>
-                </table>
+            
+            <!-- Репорты -->
+            <div id="reports-tab" class="tab-content">
+                <h3>📋 Жалобы пользователей</h3>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead><tr><th>#</th><th>От кого</th><th>На кого</th><th>Причина</th><th>Статус</th><th>Действия</th></tr></thead>
+                        <tbody id="reports-list"><tr><td colspan="6">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Комнаты -->
+            <div id="rooms-tab" class="tab-content">
+                <h3>🏠 Управление комнатами</h3>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead><tr><th>ID</th><th>Название</th><th>Тип</th><th>Макс</th><th>Участников</th><th>Действия</th></tr></thead>
+                        <tbody id="admin-rooms-list"><tr><td colspan="6">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Управление админами -->
+            <div id="admins-tab" class="tab-content">
+                <h3>👑 Управление администраторами</h3>
+                <div style="background: var(--bg-primary); padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                    <h4>➕ Назначить администратора</h4>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <input type="text" id="new-admin-id" placeholder="Static ID пользователя (например: #123456)" style="flex: 1;">
+                        <button onclick="makeAdmin()" style="width: auto; background: #ff9800;">Назначить админом</button>
+                    </div>
+                </div>
+                <h4>📋 Список администраторов</h4>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead><tr><th>Static ID</th><th>Возраст</th><th>Дата назначения</th><th>Действия</th></tr></thead>
+                        <tbody id="admins-list"><tr><td colspan="4">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
     
     <script>
-        let currentUserStaticId = localStorage.getItem('userStaticId');
+        let adminStaticId = null;
+        let adminPasswordHash = null;
         
-        // Проверка админа при загрузке
-        async function checkAdmin() {
-            try {
-                const response = await fetch(`/api/checkAdmin?static_id=${currentUserStaticId}`);
-                const data = await response.json();
-                if (!data.is_admin) {
-                    alert('У вас нет прав администратора!');
-                    window.location.href = '/dashboard.html';
-                }
-            } catch (error) {
-                console.error('Admin check error:', error);
-                window.location.hrcf = '/dashboard.html';
+        // Пароль администратора (можно изменить здесь)
+        const ADMIN_MASTER_PASSWORD = 'admin123'; // Смените на свой пароль!
+        
+        function checkAdminLogin() {
+            const password = document.getElementById('admin-password').value;
+            if (password === ADMIN_MASTER_PASSWORD) {
+                localStorage.setItem('admin_logged_in', 'true');
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('admin-content').style.display = 'block';
+                loadAllData();
+            } else {
+                document.getElementById('login-error').innerText = 'Неверный пароль!';
             }
         }
         
-        // Переключение вкладок
+        function logoutAdmin() {
+            localStorage.removeItem('admin_logged_in');
+            window.location.reload();
+        }
+        
+        // Проверка при загрузке
+        if (localStorage.getItem('admin_logged_in') === 'true') {
+            document.getElementById('login-overlay').style.display = 'none';
+            document.getElementById('admin-content').style.display = 'block';
+            loadAllData();
+        }
+        
         function showTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
-            document.getElementById(tabName + '-tab').style.display = 'block';
-            
-            // Загружаем данные в зависимости от вкладки
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(tabName + '-tab').classList.add('active');
             if (tabName === 'logs') loadLogs();
             if (tabName === 'users') loadUsers();
             if (tabName === 'bans') loadBans();
             if (tabName === 'reports') loadReports();
             if (tabName === 'rooms') loadAdminRooms();
+            if (tabName === 'admins') loadAdmins();
         }
         
-        // Загрузка логов
+        async function loadAllData() {
+            loadLogs();
+            loadUsers();
+            loadBans();
+            loadReports();
+            loadAdminRooms();
+            loadAdmins();
+        }
+        
         async function loadLogs() {
             try {
-                const response = await fetch('/api/admin/logs');
-                const logs = await response.json();
+                const res = await fetch('/api/admin/logs');
+                const logs = await res.json();
                 const tbody = document.getElementById('logs-list');
-                if (logs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5">Нет логов</td></tr>';
-                    return;
-                }
+                if (!logs.length) { tbody.innerHTML = '<tr><td colspan="5">Нет логов</td></tr>'; return; }
                 tbody.innerHTML = logs.map(log => `
                     <tr>
                         <td>${new Date(log.created_at).toLocaleString()}</td>
@@ -283,21 +298,15 @@
                         <td>${log.details || '-'}</td>
                     </tr>
                 `).join('');
-            } catch (error) {
-                console.error('Load logs error:', error);
-            }
+            } catch(e) { console.error(e); }
         }
         
-        // Загрузка пользователей
         async function loadUsers() {
             try {
-                const response = await fetch('/api/admin/users');
-                const users = await response.json();
+                const res = await fetch('/api/admin/users');
+                const users = await res.json();
                 const tbody = document.getElementById('users-list');
-                if (users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5">Нет пользователей</td></tr>';
-                    return;
-                }
+                if (!users.length) { tbody.innerHTML = '<tr><td colspan="6">Нет пользователей</td></tr>'; return; }
                 tbody.innerHTML = users.map(user => `
                     <tr>
                         <td>${user.static_id}</td>
@@ -305,23 +314,21 @@
                         <td>${user.is_banned ? '🔴 Забанен' : '✅ Активен'}</td>
                         <td>${user.is_admin ? '✅ Да' : '❌ Нет'}</td>
                         <td>${user.is_online ? '🟢 Онлайн' : '⚫ Оффлайн'}</td>
+                        <td>
+                            ${!user.is_banned ? `<button class="action-btn btn-ban" onclick="banUser('${user.static_id}')">🔨 Бан</button>` : `<button class="action-btn btn-unban" onclick="unbanUser('${user.static_id}')">🔓 Разбан</button>`}
+                            ${!user.is_admin ? `<button class="action-btn btn-makeadmin" onclick="makeAdminById('${user.static_id}')">👑 Сделать админом</button>` : `<button class="action-btn btn-removeadmin" onclick="removeAdminById('${user.static_id}')">⬇️ Снять админа</button>`}
+                        </td>
                     </tr>
                 `).join('');
-            } catch (error) {
-                console.error('Load users error:', error);
-            }
+            } catch(e) { console.error(e); }
         }
         
-        // Загрузка банов
         async function loadBans() {
             try {
-                const response = await fetch('/api/admin/bans');
-                const bans = await response.json();
+                const res = await fetch('/api/admin/bans');
+                const bans = await res.json();
                 const tbody = document.getElementById('bans-list');
-                if (bans.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5">Нет забаненных пользователей</td></tr>';
-                    return;
-                }
+                if (!bans.length) { tbody.innerHTML = '<tr><td colspan="5">Нет забаненных</td></tr>'; return; }
                 tbody.innerHTML = bans.map(ban => `
                     <tr>
                         <td>${ban.user_static_id}</td>
@@ -331,21 +338,15 @@
                         <td>${ban.unban_date ? new Date(ban.unban_date).toLocaleString() : 'Навсегда'}</td>
                     </tr>
                 `).join('');
-            } catch (error) {
-                console.error('Load bans error:', error);
-            }
+            } catch(e) { console.error(e); }
         }
         
-        // Загрузка репортов
         async function loadReports() {
             try {
-                const response = await fetch('/api/admin/reports');
-                const reports = await response.json();
+                const res = await fetch('/api/admin/reports');
+                const reports = await res.json();
                 const tbody = document.getElementById('reports-list');
-                if (reports.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6">Нет жалоб</td></tr>';
-                    return;
-                }
+                if (!reports.length) { tbody.innerHTML = '<tr><td colspan="6">Нет жалоб</td></tr>'; return; }
                 tbody.innerHTML = reports.map(report => `
                     <tr>
                         <td>${report.id}</td>
@@ -354,56 +355,49 @@
                         <td>${report.reason}</td>
                         <td>${report.status}</td>
                         <td>
-                            <button onclick="acceptReport(${report.id})" style="background:#4CAF50;padding:5px 10px;width:auto;">✅ Принять</button>
-                            <button onclick="cancelReport(${report.id})" style="background:#f44336;padding:5px 10px;width:auto;">❌ Отклонить</button>
+                            ${report.status === 'pending' ? `<button onclick="acceptReport(${report.id})" style="background:#4CAF50;">✅ Принять</button> <button onclick="cancelReport(${report.id})" style="background:#f44336;">❌ Отклонить</button>` : '-'}
                         </td>
                     </tr>
                 `).join('');
-            } catch (error) {
-                console.error('Load reports error:', error);
-            }
+            } catch(e) { console.error(e); }
         }
         
-        // Загрузка комнат для админа
         async function loadAdminRooms() {
             try {
-                const response = await fetch('/api/rooms');
-                const rooms = await response.json();
+                const res = await fetch('/api/rooms');
+                const rooms = await res.json();
                 const tbody = document.getElementById('admin-rooms-list');
-                if (rooms.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6">Нет комнат</td></tr>';
-                    return;
-                }
+                if (!rooms.length) { tbody.innerHTML = '<tr><td colspan="6">Нет комнат</td></tr>'; return; }
                 tbody.innerHTML = rooms.map(room => `
                     <tr>
                         <td>${room.id}</td>
                         <td>${room.name}</td>
                         <td>${room.type === 'voice' ? '🎤 Голосовая' : '💬 Текстовая'}</td>
                         <td>${room.max_people}</td>
-                        <td>${room.created_by || 'system'}</td>
-                        <td>
-                            <button onclick="deleteRoom(${room.id})" style="background:#f44336;padding:5px 10px;width:auto;">🗑️ Удалить</button>
-                        </td>
+                        <td>${room.current_members || 0}</td>
+                        <td><button onclick="deleteRoomAdmin(${room.id})" style="background:#f44336;">🗑️ Удалить</button></td>
                     </tr>
                 `).join('');
-            } catch (error) {
-                console.error('Load rooms error:', error);
-            }
+            } catch(e) { console.error(e); }
         }
         
-        // Удаление комнаты
-        async function deleteRoom(roomId) {
-            if (!confirm('Удалить эту комнату?')) return;
+        async function loadAdmins() {
             try {
-                await fetch(`/api/rooms/${roomId}`, { method: 'DELETE' });
-                loadAdminRooms();
-                if (typeof loadRooms === 'function') loadRooms();
-            } catch (error) {
-                console.error('Delete room error:', error);
-            }
+                const res = await fetch('/api/admin/admins');
+                const admins = await res.json();
+                const tbody = document.getElementById('admins-list');
+                if (!admins.length) { tbody.innerHTML = '<tr><td colspan="4">Нет администраторов</td></tr>'; return; }
+                tbody.innerHTML = admins.map(admin => `
+                    <tr>
+                        <td>${admin.static_id}</td>
+                        <td>${admin.age || '-'}</td>
+                        <td>${new Date(admin.created_at).toLocaleString()}</td>
+                        <td><button onclick="removeAdminById('${admin.static_id}')" style="background:#f44336;">⬇️ Снять админа</button></td>
+                    </tr>
+                `).join('');
+            } catch(e) { console.error(e); }
         }
         
-        // Поиск пользователей
         function searchUsers() {
             const input = document.getElementById('searchUser').value.toLowerCase();
             const rows = document.querySelectorAll('#users-list tr');
@@ -413,74 +407,140 @@
             });
         }
         
-        // Выполнение команды
+        async function makeAdmin() {
+            const staticId = document.getElementById('new-admin-id').value.trim();
+            if (!staticId) { alert('Введите Static ID'); return; }
+            await makeAdminById(staticId);
+            document.getElementById('new-admin-id').value = '';
+        }
+        
+        async function makeAdminById(staticId) {
+            if (!confirm(`Назначить ${staticId} администратором?`)) return;
+            try {
+                const res = await fetch('/api/admin/makeadmin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ static_id: staticId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`✅ ${staticId} назначен администратором`);
+                    loadUsers();
+                    loadAdmins();
+                } else { alert('Ошибка: ' + data.error); }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function removeAdminById(staticId) {
+            if (!confirm(`Снять права администратора с ${staticId}?`)) return;
+            try {
+                const res = await fetch('/api/admin/removeadmin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ static_id: staticId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`✅ Права администратора сняты с ${staticId}`);
+                    loadUsers();
+                    loadAdmins();
+                } else { alert('Ошибка: ' + data.error); }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function banUser(staticId) {
+            const days = prompt('На сколько дней забанить?', '7');
+            if (!days) return;
+            const reason = prompt('Причина бана:');
+            if (!reason) return;
+            try {
+                const res = await fetch('/api/admin/ban', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ static_id: staticId, days: parseInt(days), reason })
+                });
+                const data = await res.json();
+                if (data.success) { alert(`✅ ${staticId} забанен на ${days} дней`); loadUsers(); loadBans(); }
+                else { alert('Ошибка: ' + data.error); }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function unbanUser(staticId) {
+            if (!confirm(`Разбанить ${staticId}?`)) return;
+            try {
+                const res = await fetch('/api/admin/unban', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ static_id: staticId })
+                });
+                const data = await res.json();
+                if (data.success) { alert(`✅ ${staticId} разбанен`); loadUsers(); loadBans(); }
+                else { alert('Ошибка: ' + data.error); }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function deleteRoomAdmin(roomId) {
+            if (!confirm('Удалить комнату?')) return;
+            try {
+                const res = await fetch(`/api/rooms/${roomId}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) { alert('✅ Комната удалена'); loadAdminRooms(); }
+                else { alert('Ошибка: ' + data.error); }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function acceptReport(reportId) {
+            try {
+                const res = await fetch('/api/admin/acceptreport', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ report_id: reportId })
+                });
+                const data = await res.json();
+                if (data.success) { alert('✅ Репорт принят'); loadReports(); }
+                else { alert('Ошибка: ' + data.error); }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function cancelReport(reportId) {
+            const reason = prompt('Причина отклонения:');
+            if (!reason) return;
+            try {
+                const res = await fetch('/api/admin/cancelreport', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ report_id: reportId, reason })
+                });
+                const data = await res.json();
+                if (data.success) { alert('❌ Репорт отклонен'); loadReports(); }
+                else { alert('Ошибка: ' + data.error); }
+            } catch(e) { console.error(e); }
+        }
+        
         async function executeCommand() {
             const input = document.getElementById('console-command');
             const command = input.value.trim();
             const output = document.getElementById('console-output');
-            
             if (!command) return;
-            
             output.innerHTML += `<br>> ${command}`;
             input.value = '';
-            
             try {
-                const response = await fetch('/api/admin/command', {
+                const res = await fetch('/api/admin/command', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ command: command, admin_id: currentUserStaticId })
+                    body: JSON.stringify({ command })
                 });
-                const result = await response.json();
-                
-                if (result.success) {
-                    output.innerHTML += `<br>✅ ${result.message}`;
-                } else {
-                    output.innerHTML += `<br>❌ ${result.error}`;
-                }
-            } catch (error) {
-                output.innerHTML += `<br>❌ Ошибка выполнения команды`;
-            }
-            output.scrollTop = output.scrollHeight;
+                const data = await res.json();
+                if (data.success) { output.innerHTML += `<br>✅ ${data.message}`; }
+                else { output.innerHTML += `<br>❌ ${data.error}`; }
+                if (command.includes('/makeadmin') || command.includes('/removeadmin')) { loadUsers(); loadAdmins(); }
+                if (command.includes('/ban') || command.includes('/unban')) { loadUsers(); loadBans(); }
+                if (command.includes('/roomdelete')) { loadAdminRooms(); }
+                output.scrollTop = output.scrollHeight;
+            } catch(e) { output.innerHTML += `<br>❌ Ошибка выполнения`; }
         }
         
-        // Принять репорт
-        async function acceptReport(reportId) {
-            await executeAdminAction('accept', reportId);
-        }
-        
-        // Отклонить репорт
-        async function cancelReport(reportId) {
-            const reason = prompt('Причина отклонения:');
-            if (reason) {
-                await executeAdminAction('cancel', reportId, reason);
-            }
-        }
-        
-        async function executeAdminAction(action, reportId, reason = '') {
-            try {
-                const response = await fetch('/api/admin/reports', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action, report_id: reportId, reason, admin_id: currentUserStaticId })
-                });
-                const result = await response.json();
-                if (result.success) {
-                    loadReports();
-                } else {
-                    alert(result.error);
-                }
-            } catch (error) {
-                console.error('Action error:', error);
-            }
-        }
-        
-        // Enter для консоли
-        document.getElementById('console-command')?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') executeCommand();
-        });
-        
-        // Инициализация
-        checkAdmin();
+        document.getElementById('console-command')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') executeCommand(); });
     </script>
 </body>
 </html>

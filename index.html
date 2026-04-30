@@ -6,118 +6,20 @@
     <title>Harmony Chat - Анонимный голосовой чат</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .auth-box {
-            max-width: 400px;
-            margin: 0 auto;
-            background: var(--bg-card);
-            padding: 30px;
-            border-radius: 20px;
-            box-shadow: var(--shadow);
-        }
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .tab-btn {
-            flex: 1;
-            padding: 12px;
-            background: var(--bg-primary);
-            border: none;
-            cursor: pointer;
-            border-radius: 10px;
-            color: var(--text-primary);
-            font-size: 16px;
-            transition: all 0.3s;
-        }
-        .tab-btn.active {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-        .form-container {
-            background: var(--bg-card);
-            padding: 20px;
-            border-radius: 15px;
-        }
-        .form-container h3 {
-            margin-bottom: 20px;
-            color: var(--text-primary);
-            text-align: center;
-        }
-        input {
-            width: 100%;
-            padding: 12px;
-            margin: 8px 0;
-            border: 2px solid var(--border-color);
-            border-radius: 10px;
-            font-size: 16px;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            margin: 8px 0;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        button:hover {
-            transform: translateY(-2px);
-        }
-        .error {
-            background: #f44336;
-            color: white;
-            padding: 10px;
-            border-radius: 8px;
-            margin-top: 10px;
-            text-align: center;
-        }
-        .success {
-            background: #4CAF50;
-            color: white;
-            padding: 10px;
-            border-radius: 8px;
-            margin-top: 10px;
-            text-align: center;
-        }
-        .success-block {
-            background: #4CAF50;
-            color: white;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 15px;
-            text-align: center;
-            animation: static 0.5s;
-        }
-        @keyframes static {
-            0% { text-shadow: 2px 2px 0 red; }
-            100% { text-shadow: none; }
-        }
-        .logo {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .logo h1 {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            font-size: 2.5em;
-        }
-        .logo p {
-            color: var(--text-secondary);
-            margin-top: 10px;
-        }
-        .container {
-            max-width: 500px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+        .auth-box { max-width: 400px; margin: 0 auto; background: var(--bg-card); padding: 30px; border-radius: 20px; box-shadow: var(--shadow); }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 12px; background: var(--bg-primary); border: none; cursor: pointer; border-radius: 10px; color: var(--text-primary); font-size: 16px; }
+        .tab-btn.active { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+        .form-container { background: var(--bg-card); padding: 20px; border-radius: 15px; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 2px solid var(--border-color); border-radius: 10px; background: var(--bg-primary); color: var(--text-primary); }
+        button { width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 10px; cursor: pointer; }
+        .error { background: #f44336; color: white; padding: 10px; border-radius: 8px; margin-top: 10px; text-align: center; }
+        .success { background: #4CAF50; color: white; padding: 10px; border-radius: 8px; margin-top: 10px; text-align: center; }
+        .success-block { background: #4CAF50; color: white; padding: 15px; border-radius: 10px; margin-top: 15px; text-align: center; animation: static 0.5s; }
+        @keyframes static { 0% { text-shadow: 2px 2px 0 red; } 100% { text-shadow: none; } }
+        .logo { text-align: center; margin-bottom: 30px; }
+        .logo h1 { background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 2.5em; }
+        .container { max-width: 500px; margin: 0 auto; padding: 20px; }
     </style>
 </head>
 <body>
@@ -126,14 +28,11 @@
             <h1>🎤 Harmony Chat</h1>
             <p>Анонимное голосовое общение</p>
         </div>
-        
         <div class="auth-box">
             <div class="tabs">
                 <button class="tab-btn active" onclick="showTab('register')">Регистрация</button>
                 <button class="tab-btn" onclick="showTab('login')">Авторизация</button>
             </div>
-            
-            <!-- Регистрация -->
             <div id="register-form" class="form-container">
                 <h3>📝 Создать аккаунт</h3>
                 <input type="number" id="reg-age" placeholder="Возраст (11-18)" min="11" max="18">
@@ -142,8 +41,6 @@
                 <div id="reg-message"></div>
                 <div id="reg-static-id" style="display:none;"></div>
             </div>
-            
-            <!-- Авторизация -->
             <div id="login-form" class="form-container" style="display:none">
                 <h3>🔐 Войти в чат</h3>
                 <input type="text" id="login-static" placeholder="Static ID (например: #123456)">
@@ -153,9 +50,7 @@
             </div>
         </div>
     </div>
-    
     <script>
-        // Переключение между вкладками
         function showTab(tab) {
             document.querySelectorAll('.form-container').forEach(el => el.style.display = 'none');
             document.getElementById(tab + '-form').style.display = 'block';
@@ -163,113 +58,75 @@
             event.target.classList.add('active');
         }
         
-        // Регистрация
         async function register() {
             const age = document.getElementById('reg-age').value;
             const password = document.getElementById('reg-password').value;
             const messageDiv = document.getElementById('reg-message');
             const staticIdDiv = document.getElementById('reg-static-id');
-            
             messageDiv.innerHTML = '';
             staticIdDiv.style.display = 'none';
-            
             if (!age || age < 11 || age > 18) {
                 messageDiv.innerHTML = '<div class="error">❌ Введите возраст от 11 до 18 лет</div>';
                 return;
             }
-            
             if (!password || password.length < 4) {
-                messageDiv.innerHTML = '<div class="error">❌ Пароль должен содержать минимум 4 символа</div>';
+                messageDiv.innerHTML = '<div class="error">❌ Пароль должен быть минимум 4 символа</div>';
                 return;
             }
-            
             messageDiv.innerHTML = '<div class="success">📝 Регистрация...</div>';
-            
             try {
                 const response = await fetch('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ age: parseInt(age), password: password })
                 });
-                
                 const data = await response.json();
-                
                 if (data.success) {
                     staticIdDiv.style.display = 'block';
-                    staticIdDiv.innerHTML = `
-                        <div class="success-block">
-                            🔊 Статик шум... Аккаунт создан!<br>
-                            Ваш Static ID: <strong style="font-size: 24px;">${data.static_id}</strong>
-                            <br><small>Сохраните его!</small>
-                        </div>
-                    `;
+                    staticIdDiv.innerHTML = `<div class="success-block">🔊 Аккаунт создан!<br>Ваш Static ID: <strong style="font-size:24px;">${data.static_id}</strong><br><small>Сохраните его!</small></div>`;
                     messageDiv.innerHTML = '';
                     localStorage.setItem('userStaticId', data.static_id);
-                    
-                    setTimeout(() => {
-                        showTab('login');
-                        document.getElementById('reg-age').value = '';
-                        document.getElementById('reg-password').value = '';
-                        staticIdDiv.style.display = 'none';
-                    }, 3000);
+                    setTimeout(() => { showTab('login'); }, 3000);
                 } else {
                     messageDiv.innerHTML = '<div class="error">❌ ' + (data.error || 'Ошибка регистрации') + '</div>';
                 }
             } catch (error) {
-                console.error('Register error:', error);
-                messageDiv.innerHTML = '<div class="error">❌ Ошибка соединения с сервером. Проверьте интернет.</div>';
+                messageDiv.innerHTML = '<div class="error">❌ Ошибка соединения с сервером</div>';
             }
         }
         
-        // Авторизация
         async function login() {
             const staticId = document.getElementById('login-static').value.trim();
             const password = document.getElementById('login-password').value;
             const messageDiv = document.getElementById('login-message');
-            
             messageDiv.innerHTML = '';
-            
             if (!staticId || !password) {
                 messageDiv.innerHTML = '<div class="error">❌ Введите Static ID и пароль</div>';
                 return;
             }
-            
             messageDiv.innerHTML = '<div class="success">🔐 Проверка...</div>';
-            
             try {
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ static_id: staticId, password: password })
                 });
-                
                 const data = await response.json();
-                
                 if (data.success) {
                     localStorage.setItem('userStaticId', staticId);
                     messageDiv.innerHTML = '<div class="success">✅ Вход выполнен! Перенаправление...</div>';
-                    setTimeout(() => {
-                        window.location.href = '/dashboard.html';
-                    }, 1000);
+                    setTimeout(() => { window.location.href = '/dashboard.html'; }, 1000);
                 } else {
                     messageDiv.innerHTML = '<div class="error">❌ ' + data.error + '</div>';
                 }
             } catch (error) {
-                console.error('Login error:', error);
                 messageDiv.innerHTML = '<div class="error">❌ Ошибка соединения с сервером</div>';
             }
         }
         
-        // Обработка Enter
-        document.getElementById('reg-password')?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') register();
-        });
-        document.getElementById('login-password')?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') login();
-        });
-        document.getElementById('login-static')?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') login();
-        });
+        document.getElementById('reg-password')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') register(); });
+        document.getElementById('login-password')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') login(); });
+        document.getElementById('login-static')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') login(); });
     </script>
 </body>
 </html>

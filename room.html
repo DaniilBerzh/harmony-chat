@@ -277,17 +277,14 @@
     
     <script>
         // ============================================
-        // ОПТИМИЗАЦИЯ WEBSOCKET
-        // - Уменьшен размер передаваемых аудиоданных (каждый 4-й сэмпл)
-        // - Увеличен интервал между отправкой (80ms)
-        // - Порог чувствительности увеличен (тишина не отправляется)
-        // - Добавлена буферизация сообщений
+        // НАСТРОЙКИ КАЧЕСТВЕННОГО ЗВУКА (без хрипения)
         // ============================================
         const AUDIO_CONFIG = {
-            frameSize: 4096,          // Увеличен размер кадра
-            throttleMs: 80,           // Увеличен интервал между отправкой
-            volumeThreshold: 0.015,   // Выше порог (меньше тишины)
-            sampleStep: 4             // Каждый 4-й сэмпл (в 4 раза меньше данных)
+            frameSize: 2048,           // Размер кадра
+            throttleMs: 40,            // 40ms между отправками (25 кадров/сек)
+            volumeThreshold: 0.005,    // Низкий порог для тихих звуков
+            sampleStep: 1,             // Отправляем каждый сэмпл (без сжатия)
+            sampleRate: 44100          // Высокая частота дискретизации
         };
         
         // ============================================
@@ -298,11 +295,12 @@
         let userStaticId = localStorage.getItem('userStaticId');
         let mediaStream = null;
         let audioContext = null;
+        let sourceNode = null;
+        let processorNode = null;
         let isMuted = true;
         let speakersEnabled = true;
         let lastSendTime = 0;
-        let reconnectAttempts = 0;
-        const processedMessages = new Set(); // Для предотвращения дублей сообщений
+        const processedMessages = new Set();
         
         // DOM элементы
         const micBtn = document.getElementById('mic-btn');
@@ -337,14 +335,13 @@
         document.getElementById('room-name').textContent = roomName || 'Комната';
         
         // ============================================
-        // WEBSOCKET (ОПТИМИЗИРОВАННЫЙ)
+        // WEBSOCKET
         // ============================================
         function connectWebSocket() {
             ws = new WebSocket(`wss://${window.location.host}`);
             
             ws.onopen = () => {
                 console.log('✅ WebSocket подключен');
-                reconnectAttempts = 0;
                 ws.send(JSON.stringify({ type: 'auth', staticId: userStaticId }));
                 ws.send(JSON.stringify({ type: 'join_room', roomId: parseInt(roomId) }));
             };
@@ -358,13 +355,8 @@
             
             ws.onclose = () => {
                 console.log('❌ WebSocket отключен, переподключение...');
-                setTimeout(() => {
-                    reconnectAttempts++;
-                    if (reconnectAttempts < 10) connectWebSocket();
-                }, 3000);
+                setTimeout(connectWebSocket, 3000);
             };
-            
-            ws.onerror = (err) => console.error('WebSocket error:', err);
         }
         
         function handleMessage(data) {
@@ -382,11 +374,10 @@
                     break;
                 case 'voice_data':
                     if (speakersEnabled && data.audio) {
-                        playAudioOptimized(data.audio);
+                        playAudio(data.audio);
                     }
                     break;
                 case 'text_message':
-                    // Защита от дублей сообщений
                     const msgKey = `${data.from}:${data.message}:${data.timestamp || ''}`;
                     if (!processedMessages.has(msgKey)) {
                         processedMessages.add(msgKey);
@@ -436,23 +427,28 @@
         }
         
         // ============================================
-        // ОПТИМИЗИРОВАННЫЙ МИКРОФОН (меньше данных)
+        // КАЧЕСТВЕННЫЙ МИКРОФОН (без хрипения)
         // ============================================
         async function startMicrophone() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                    audio: { 
+                        echoCancellation: true, 
+                        noiseSuppression: true, 
+                        autoGainControl: true,
+                        sampleRate: AUDIO_CONFIG.sampleRate
+                    }
                 });
                 mediaStream = stream;
                 
-                audioContext = new AudioContext();
-                const source = audioContext.createMediaStreamSource(stream);
-                const processor = audioContext.createScriptProcessor(AUDIO_CONFIG.frameSize, 1, 1);
+                audioContext = new AudioContext({ sampleRate: AUDIO_CONFIG.sampleRate });
+                sourceNode = audioContext.createMediaStreamSource(stream);
+                processorNode = audioContext.createScriptProcessor(AUDIO_CONFIG.frameSize, 1, 1);
                 
-                source.connect(processor);
-                processor.connect(audioContext.destination);
+                sourceNode.connect(processorNode);
+                processorNode.connect(audioContext.destination);
                 
-                processor.onaudioprocess = (e) => {
+                processorNode.onaudioprocess = (e) => {
                     if (isMuted || !ws || ws.readyState !== WebSocket.OPEN) return;
                     
                     const now = Date.now();
@@ -460,20 +456,18 @@
                     
                     const inputData = e.inputBuffer.getChannelData(0);
                     let volume = 0;
-                    for (let i = 0; i < inputData.length; i++) volume += Math.abs(inputData[i]);
+                    for (let i = 0; i < inputData.length; i++) {
+                        volume += Math.abs(inputData[i]);
+                    }
                     volume /= inputData.length;
                     
-                    // Отправляем только если есть значительный звук
                     if (volume > AUDIO_CONFIG.volumeThreshold) {
                         lastSendTime = now;
-                        // Берем каждый 4-й сэмпл для уменьшения трафика
-                        const reduced = [];
-                        for (let i = 0; i < inputData.length; i += AUDIO_CONFIG.sampleStep) {
-                            reduced.push(inputData[i]);
-                        }
+                        // Отправляем ВСЕ сэмплы (без сжатия)
+                        const audioArray = Array.from(inputData);
                         ws.send(JSON.stringify({ 
                             type: 'voice_data', 
-                            audio: reduced,
+                            audio: audioArray,
                             ts: Date.now()
                         }));
                     }
@@ -496,6 +490,14 @@
             if (mediaStream) {
                 mediaStream.getTracks().forEach(t => t.stop());
                 mediaStream = null;
+            }
+            if (processorNode) {
+                processorNode.disconnect();
+                processorNode = null;
+            }
+            if (sourceNode) {
+                sourceNode.disconnect();
+                sourceNode = null;
             }
             if (audioContext) {
                 audioContext.close();
@@ -525,24 +527,17 @@
             addSystemMessage(speakersEnabled ? '🔊 Звук включен' : '🔇 Звук выключен');
         }
         
-        // Оптимизированное воспроизведение
-        function playAudioOptimized(audioArray) {
+        // Качественное воспроизведение
+        function playAudio(audioArray) {
             if (!speakersEnabled) return;
             if (!audioContext || audioContext.state === 'closed') {
-                audioContext = new AudioContext();
+                audioContext = new AudioContext({ sampleRate: AUDIO_CONFIG.sampleRate });
             }
             if (audioContext.state === 'suspended') audioContext.resume();
             
             try {
-                // Восстанавливаем данные для плавного звука
-                const restored = [];
-                for (let i = 0; i < audioArray.length; i++) {
-                    for (let j = 0; j < AUDIO_CONFIG.sampleStep; j++) {
-                        restored.push(audioArray[i]);
-                    }
-                }
-                const buffer = audioContext.createBuffer(1, restored.length, 16000);
-                buffer.copyToChannel(new Float32Array(restored), 0);
+                const buffer = audioContext.createBuffer(1, audioArray.length, AUDIO_CONFIG.sampleRate);
+                buffer.copyToChannel(new Float32Array(audioArray), 0);
                 const source = audioContext.createBufferSource();
                 source.buffer = buffer;
                 source.connect(audioContext.destination);
@@ -557,20 +552,18 @@
         }
         
         // ============================================
-        // ТЕКСТОВЫЙ ЧАТ (БЕЗ ДУБЛЕЙ)
+        // ТЕКСТОВЫЙ ЧАТ
         // ============================================
         function sendMessage() {
             const msg = messageInput.value.trim();
             if (!msg) return;
             
             if (ws?.readyState === WebSocket.OPEN) {
-                const messageId = Date.now();
                 ws.send(JSON.stringify({ 
                     type: 'text_message', 
                     message: msg,
-                    timestamp: messageId
+                    timestamp: Date.now()
                 }));
-                // Сразу показываем свое сообщение
                 addMessage('Вы', msg, true);
                 messageInput.value = '';
                 messageInput.focus();
@@ -586,7 +579,6 @@
             messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             
-            // Ограничиваем историю
             while (messagesDiv.children.length > 100) {
                 messagesDiv.removeChild(messagesDiv.firstChild);
             }
@@ -615,7 +607,6 @@
             window.location.href = '/dashboard.html';
         }
         
-        // Обработка Enter
         messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -628,9 +619,8 @@
         // ============================================
         connectWebSocket();
         fetchOnlineCount();
-        setInterval(fetchOnlineCount, 15000); // Реже обновляем онлайн
+        setInterval(fetchOnlineCount, 10000);
         
-        // Автозапрос микрофона через 1 секунду
         setTimeout(() => startMicrophone(), 1000);
     </script>
 </body>

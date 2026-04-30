@@ -20,7 +20,8 @@ app.use(express.static(__dirname));
 let dbHost = process.env.MYSQLHOST;
 let dbPort = parseInt(process.env.MYSQLPORT) || 3306;
 let dbUser = process.env.MYSQLUSER || 'root';
-let dbPassword = process.env.MYSQLPASSWORD || '';
+// ВАЖНО: Вставьте ваш реальный пароль вместо 'ВАШ_ПАРОЛЬ_ЗДЕСЬ'
+let dbPassword = process.env.MYSQLPASSWORD || 'EfZwXgXXTMgSYxACiVlZtSenliMOymaC';
 let dbDatabase = process.env.MYSQLDATABASE || 'railway';
 
 // Если MYSQLHOST не задан, пробуем альтернативы

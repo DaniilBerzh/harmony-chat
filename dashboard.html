@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Harmony Chat - Голосовой чат</title>
+    <link rel="icon" type="image/png" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23764ba2'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white'%3E🎤%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="style.css">
     <style>
         :root {
@@ -196,12 +197,11 @@
             margin: 10px 0;
             padding: 15px;
             border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.3s;
             display: flex;
             justify-content: space-between;
             align-items: center;
             border: 1px solid var(--border-color);
+            transition: all 0.3s;
         }
         
         .room-item:hover {
@@ -219,23 +219,41 @@
             color: var(--text-primary);
         }
         
-        .room-type {
-            font-size: 12px;
+        .room-creator {
+            font-size: 10px;
             color: var(--text-secondary);
-            margin-left: 5px;
+            margin-top: 3px;
         }
         
         .room-members {
             font-size: 12px;
             color: #4CAF50;
             margin-top: 5px;
-            display: block;
+        }
+        
+        .room-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
         }
         
         .join-btn {
-            padding: 6px 15px;
+            padding: 8px 15px;
             width: auto;
             margin: 0;
+            font-size: 13px;
+        }
+        
+        .delete-btn {
+            background: #f44336;
+            padding: 8px 12px;
+            width: auto;
+            margin: 0;
+            font-size: 13px;
+        }
+        
+        .delete-btn:hover {
+            background: #d32f2f;
         }
         
         .messages {
@@ -249,14 +267,6 @@
             background: var(--bg-primary);
         }
         
-        .message {
-            padding: 8px 12px;
-            margin: 5px 0;
-            border-radius: 10px;
-            background: #e8f5e9;
-            color: #333;
-        }
-        
         .system-message {
             padding: 8px 12px;
             margin: 5px 0;
@@ -264,11 +274,6 @@
             background: #e3f2fd;
             font-style: italic;
             font-size: 13px;
-        }
-        
-        [data-theme="dark"] .message {
-            background: #1a3a2a;
-            color: #e0e0e0;
         }
         
         [data-theme="dark"] .system-message {
@@ -286,6 +291,12 @@
             .header {
                 flex-direction: column;
                 text-align: center;
+            }
+            .room-actions {
+                flex-direction: column;
+            }
+            .join-btn, .delete-btn {
+                width: 100%;
             }
         }
     </style>
@@ -404,18 +415,21 @@
             
             container.innerHTML = '';
             rooms.forEach(room => {
+                const typeIcon = room.type === 'voice' ? '🎤' : '💬';
+                const canDelete = room.created_by === userStaticId;
+                
                 const roomDiv = document.createElement('div');
                 roomDiv.className = 'room-item';
-                const typeIcon = room.type === 'voice' ? '🎤' : '💬';
                 roomDiv.innerHTML = `
                     <div class="room-info">
-                        <div>
-                            <span class="room-name">${escapeHtml(room.name)}</span>
-                            <span class="room-type">${typeIcon}</span>
-                        </div>
+                        <div class="room-name">${escapeHtml(room.name)} ${typeIcon}</div>
                         <div class="room-members">👥 ${room.current_members || 0}/${room.max_people}</div>
+                        ${room.created_by ? `<div class="room-creator">👑 Создатель: ${escapeHtml(room.created_by)}</div>` : ''}
                     </div>
-                    <button class="join-btn" onclick="joinRoom(${room.id}, '${room.type}', '${escapeHtml(room.name)}')">Войти</button>
+                    <div class="room-actions">
+                        <button class="join-btn" onclick="joinRoom(${room.id}, '${room.type}', '${escapeHtml(room.name)}')">Войти</button>
+                        ${canDelete ? `<button class="delete-btn" onclick="deleteRoom(${room.id})">🗑️ Удалить</button>` : ''}
+                    </div>
                 `;
                 container.appendChild(roomDiv);
             });
@@ -435,7 +449,7 @@
                 const response = await fetch('/api/rooms', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, max_people: max, type })
+                    body: JSON.stringify({ name, max_people: max, type, created_by: userStaticId })
                 });
                 const data = await response.json();
                 
@@ -452,10 +466,31 @@
             }
         }
         
-        // Функция входа в комнату - ПЕРЕХОД НА СТРАНИЦУ КОМНАТЫ
+        // Удаление комнаты
+        async function deleteRoom(roomId) {
+            if (!confirm('🗑️ Вы уверены, что хотите удалить эту комнату?')) return;
+            
+            try {
+                const response = await fetch(`/api/rooms/${roomId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    addSystemMessage(`✅ Комната удалена`);
+                    loadRooms();
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Delete room error:', error);
+                alert('Ошибка удаления комнаты');
+            }
+        }
+        
+        // Вход в комнату
         async function joinRoom(roomId, roomType, roomName) {
             if (roomType === 'voice') {
-                // Проверяем, не заполнена ли комната
                 try {
                     const response = await fetch(`/api/rooms/${roomId}/join`, {
                         method: 'POST',
@@ -465,7 +500,6 @@
                     const data = await response.json();
                     
                     if (data.success) {
-                        // Переходим на страницу комнаты
                         window.location.href = `/room.html?id=${roomId}&name=${encodeURIComponent(roomName)}`;
                     } else {
                         alert('Ошибка: ' + data.error);
@@ -525,6 +559,7 @@
         // Глобальные функции
         window.createRoom = createRoom;
         window.joinRoom = joinRoom;
+        window.deleteRoom = deleteRoom;
         window.toggleTheme = toggleTheme;
     </script>
 </body>

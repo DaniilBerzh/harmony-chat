@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Harmony Chat - Комната</title>
+    <title>Harmony Chat - Голосовая комната</title>
     <link rel="stylesheet" href="style.css">
     <style>
         :root {
@@ -63,6 +63,7 @@
         .room-controls {
             display: flex;
             gap: 10px;
+            flex-wrap: wrap;
         }
         
         .control-btn {
@@ -72,7 +73,7 @@
             padding: 10px 20px;
             border-radius: 10px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             transition: all 0.3s;
             display: flex;
             align-items: center;
@@ -84,12 +85,20 @@
             transform: scale(1.02);
         }
         
-        .control-btn.active {
+        .control-btn.mic-on {
             background: #4CAF50;
         }
         
-        .control-btn.muted {
+        .control-btn.mic-off {
             background: #f44336;
+        }
+        
+        .control-btn.speakers-on {
+            background: #2196F3;
+        }
+        
+        .control-btn.speakers-off {
+            background: #9E9E9E;
         }
         
         .exit-btn {
@@ -129,6 +138,22 @@
         @keyframes blink {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.3; }
+        }
+        
+        /* Визуализатор голоса */
+        .voice-visualizer {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            height: 30px;
+        }
+        
+        .voice-bar {
+            width: 4px;
+            height: 10px;
+            background: white;
+            border-radius: 2px;
+            transition: height 0.05s;
         }
         
         .main-content {
@@ -247,19 +272,13 @@
             cursor: pointer;
         }
         
-        .voice-visualizer {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 3px;
+        /* Индикатор качества звука */
+        .audio-quality {
+            font-size: 11px;
+            background: rgba(0,0,0,0.5);
+            padding: 4px 8px;
+            border-radius: 10px;
             margin-left: 10px;
-        }
-        
-        .voice-bar {
-            width: 3px;
-            height: 20px;
-            background: #4CAF50;
-            transition: height 0.05s;
         }
         
         @media (max-width: 768px) {
@@ -271,7 +290,7 @@
                 order: -1;
             }
             .room-controls {
-                flex-wrap: wrap;
+                justify-content: center;
             }
         }
     </style>
@@ -284,17 +303,24 @@
                 <span class="online-badge" id="online-count">0</span>
             </h2>
             <div class="room-controls">
+                <div class="voice-visualizer" id="voice-visualizer">
+                    <div class="voice-bar"></div>
+                    <div class="voice-bar"></div>
+                    <div class="voice-bar"></div>
+                    <div class="voice-bar"></div>
+                    <div class="voice-bar"></div>
+                </div>
                 <button class="control-btn" id="test-mic-btn" onclick="testMicrophone()">
-                    🎤 Проверить микрофон
+                    🎤 Проверить
                 </button>
-                <button class="control-btn" id="mic-btn" onclick="toggleMicrophone()">
-                    🎤 Включить микрофон
+                <button class="control-btn mic-off" id="mic-btn" onclick="toggleMicrophone()">
+                    🎤 Микрофон выкл
                 </button>
-                <button class="control-btn" id="speakers-btn" onclick="toggleSpeakers()">
-                    🔊 Наушники
+                <button class="control-btn speakers-on" id="speakers-btn" onclick="toggleSpeakers()">
+                    🔊 Звук вкл
                 </button>
                 <button class="control-btn exit-btn" onclick="leaveRoom()">
-                    🚪 Покинуть комнату
+                    🚪 Выйти
                 </button>
                 <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
             </div>
@@ -306,11 +332,15 @@
                 <div class="members-list" id="members-list">
                     <div class="member-item">Загрузка...</div>
                 </div>
+                <div style="margin-top: 15px; font-size: 12px; color: var(--text-secondary); text-align: center;">
+                    🎵 Говорите четко для лучшего качества
+                </div>
             </div>
             
             <div class="chat-area">
                 <div class="messages" id="messages">
-                    <div class="system-message">🔔 Добро пожаловать в комнату!</div>
+                    <div class="system-message">🔔 Добро пожаловать в голосовую комнату!</div>
+                    <div class="system-message">🎤 Нажмите на микрофон, чтобы начать говорить</div>
                 </div>
                 <div class="message-input-area">
                     <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500">
@@ -322,6 +352,19 @@
     
     <script>
         // ============================================
+        // УЛУЧШЕННЫЕ НАСТРОЙКИ АУДИО
+        // ============================================
+        const AUDIO_CONFIG = {
+            sampleRate: 48000,        // 48kHz для лучшего качества
+            frameSize: 2048,          // Меньше задержка
+            bitRate: 128,             // Битрейт
+            echoCancellation: true,   // Подавление эха
+            noiseSuppression: true,   // Подавление шума
+            autoGainControl: true,    // Автоматическая регулировка
+            volumeThreshold: 0.005    // Порог тишины (ниже = лучше чувствительность)
+        };
+        
+        // ============================================
         // ПЕРЕМЕННЫЕ
         // ============================================
         let ws = null;
@@ -330,8 +373,11 @@
         let userStaticId = localStorage.getItem('userStaticId');
         let mediaStream = null;
         let audioContext = null;
+        let sourceNode = null;
+        let processorNode = null;
         let isMuted = true;
         let speakersEnabled = true;
+        let animationId = null;
         
         // DOM элементы
         const roomNameSpan = document.getElementById('room-name');
@@ -342,6 +388,8 @@
         const micBtn = document.getElementById('mic-btn');
         const speakersBtn = document.getElementById('speakers-btn');
         const messageInput = document.getElementById('message-input');
+        const voiceVisualizer = document.getElementById('voice-visualizer');
+        const voiceBars = document.querySelectorAll('.voice-bar');
         
         // ============================================
         // ТЕМНАЯ ТЕМА
@@ -365,7 +413,7 @@
         loadTheme();
         
         // ============================================
-        // ПОЛУЧЕНИЕ ПАРАМЕТРОВ КОМНАТЫ ИЗ URL
+        // ПОЛУЧЕНИЕ ПАРАМЕТРОВ КОМНАТЫ
         // ============================================
         const urlParams = new URLSearchParams(window.location.search);
         roomId = urlParams.get('id');
@@ -378,7 +426,7 @@
         roomNameSpan.textContent = roomName || 'Комната';
         
         // ============================================
-        // WEBSOCKET ПОДКЛЮЧЕНИЕ
+        // WEBSOCKET
         // ============================================
         function connectWebSocket() {
             const wsUrl = `wss://${window.location.host}`;
@@ -388,6 +436,7 @@
                 console.log('WebSocket connected');
                 ws.send(JSON.stringify({ type: 'auth', staticId: userStaticId }));
                 ws.send(JSON.stringify({ type: 'join_room', roomId: parseInt(roomId) }));
+                addSystemMessage('✅ Подключено к голосовому серверу');
             };
             
             ws.onmessage = (event) => {
@@ -411,15 +460,15 @@
                     updateMembersList(data.members);
                     break;
                 case 'user_joined':
-                    addSystemMessage(`👋 ${data.userId} присоединился`);
+                    addSystemMessage(`👋 ${data.userId} присоединился к комнате`);
                     updateOnlineCount();
                     break;
                 case 'user_left':
-                    addSystemMessage(`👋 ${data.userId} покинул`);
+                    addSystemMessage(`👋 ${data.userId} покинул комнату`);
                     updateOnlineCount();
                     break;
                 case 'voice_data':
-                    if (speakersEnabled) {
+                    if (speakersEnabled && data.audio) {
                         playAudio(data.audio);
                     }
                     break;
@@ -432,8 +481,6 @@
                 case 'speaking':
                     showSpeakingIndicator(data.userId);
                     break;
-                default:
-                    console.log('Unknown message:', data.type);
             }
         }
         
@@ -452,7 +499,7 @@
             membersListDiv.innerHTML = members.map(member => `
                 <div class="member-item">
                     <span class="member-name">${escapeHtml(member)} ${member === userStaticId ? '(Вы)' : ''}</span>
-                    <span class="member-status" id="status-${escapeHtml(member)}">${member === userStaticId ? '🎤' : '🟢'}</span>
+                    <span class="member-status" id="status-${escapeHtml(member)}">${member === userStaticId ? (isMuted ? '🔇' : '🎤') : '🟢'}</span>
                 </div>
             `).join('');
             
@@ -465,7 +512,7 @@
                 statusSpan.innerHTML = '🔊';
                 statusSpan.classList.add('speaking');
                 setTimeout(() => {
-                    if (statusSpan) {
+                    if (statusSpan && statusSpan.innerHTML === '🔊') {
                         statusSpan.innerHTML = '🟢';
                         statusSpan.classList.remove('speaking');
                     }
@@ -490,57 +537,102 @@
         }
         
         // ============================================
-        // МИКРОФОН И АУДИО
+        // УЛУЧШЕННЫЙ МИКРОФОН
         // ============================================
         async function startMicrophone() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // Запрашиваем доступ с улучшенными настройками
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: AUDIO_CONFIG.echoCancellation,
+                        noiseSuppression: AUDIO_CONFIG.noiseSuppression,
+                        autoGainControl: AUDIO_CONFIG.autoGainControl,
+                        sampleRate: AUDIO_CONFIG.sampleRate,
+                        channelCount: 1
+                    }
+                });
+                
                 mediaStream = stream;
                 
-                audioContext = new AudioContext();
-                const source = audioContext.createMediaStreamSource(stream);
-                const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                // Создаем аудио контекст с высокой частотой дискретизации
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: AUDIO_CONFIG.sampleRate
+                });
                 
-                source.connect(processor);
-                processor.connect(audioContext.destination);
+                sourceNode = audioContext.createMediaStreamSource(stream);
                 
-                let lastSend = 0;
+                // Создаем анализатор для визуализации
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                sourceNode.connect(analyser);
                 
-                processor.onaudioprocess = (e) => {
+                // Создаем процессор с оптимизированным размером буфера
+                processorNode = audioContext.createScriptProcessor(AUDIO_CONFIG.frameSize, 1, 1);
+                sourceNode.connect(processorNode);
+                processorNode.connect(audioContext.destination);
+                
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                let lastSendTime = 0;
+                let frameCount = 0;
+                
+                processorNode.onaudioprocess = (e) => {
                     if (isMuted || !ws || ws.readyState !== WebSocket.OPEN) return;
                     
                     const now = Date.now();
-                    if (now - lastSend < 50) return;
-                    lastSend = now;
+                    // Отправляем каждые 40ms (25 кадров в секунду) для плавного звука
+                    if (now - lastSendTime < 40) return;
+                    lastSendTime = now;
                     
-                    const inputData = e.inputBuffer.getChannelData(0);
+                    // Получаем уровень громкости для визуализации
+                    analyser.getByteFrequencyData(dataArray);
                     let volume = 0;
-                    for (let i = 0; i < inputData.length; i++) volume += Math.abs(inputData[i]);
-                    volume /= inputData.length;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        volume += dataArray[i];
+                    }
+                    volume = volume / dataArray.length / 255;
                     
-                    if (volume > 0.01) {
+                    // Получаем аудио данные
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    
+                    // Проверяем уровень громкости (отправляем даже тихий звук, но с порогом)
+                    if (volume > AUDIO_CONFIG.volumeThreshold) {
+                        // Конвертируем в обычный массив
+                        const audioArray = Array.from(inputData);
+                        
+                        // Отправляем через WebSocket
                         ws.send(JSON.stringify({
                             type: 'voice_data',
-                            audio: Array.from(inputData)
+                            audio: audioArray,
+                            volume: volume
                         }));
                         
-                        // Визуализация звука
-                        showVoiceVisualizer(volume);
+                        frameCount++;
+                        if (frameCount % 50 === 0) {
+                            console.log(`🎙️ Отправлено ${frameCount} кадров, громкость: ${Math.round(volume * 100)}%`);
+                        }
                     }
+                    
+                    // Обновляем визуализатор
+                    updateVisualizer(volume);
                 };
-                
-                addSystemMessage('🎙️ Микрофон включен');
-                isMuted = false;
-                micBtn.textContent = '🔇 Выключить микрофон';
-                micBtn.classList.remove('active');
-                micBtn.classList.add('muted');
                 
                 if (audioContext.state === 'suspended') {
                     await audioContext.resume();
                 }
+                
+                isMuted = false;
+                updateMicButton();
+                addSystemMessage('🎙️ Микрофон включен. Говорите четко!');
+                
             } catch (error) {
                 console.error('Microphone error:', error);
-                addSystemMessage('❌ Нет доступа к микрофону. Разрешите доступ в браузере.');
+                if (error.name === 'NotAllowedError') {
+                    addSystemMessage('❌ Разрешите доступ к микрофону в настройках браузера');
+                } else if (error.name === 'NotFoundError') {
+                    addSystemMessage('❌ Микрофон не найден. Подключите микрофон');
+                } else {
+                    addSystemMessage('❌ Ошибка доступа к микрофону');
+                }
             }
         }
         
@@ -549,15 +641,29 @@
                 mediaStream.getTracks().forEach(track => track.stop());
                 mediaStream = null;
             }
+            if (processorNode) {
+                processorNode.disconnect();
+                processorNode = null;
+            }
+            if (sourceNode) {
+                sourceNode.disconnect();
+                sourceNode = null;
+            }
             if (audioContext) {
                 audioContext.close();
                 audioContext = null;
             }
-            addSystemMessage('🔇 Микрофон выключен');
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            
             isMuted = true;
-            micBtn.textContent = '🎤 Включить микрофон';
-            micBtn.classList.remove('muted');
-            micBtn.classList.add('active');
+            updateMicButton();
+            addSystemMessage('🔇 Микрофон выключен');
+            
+            // Сбрасываем визуализатор
+            resetVisualizer();
         }
         
         function toggleMicrophone() {
@@ -568,24 +674,82 @@
             }
         }
         
-        function toggleSpeakers() {
-            speakersEnabled = !speakersEnabled;
-            speakersBtn.textContent = speakersEnabled ? '🔊 Наушники' : '🔇 Наушники выкл';
-            speakersBtn.classList.toggle('muted');
-            addSystemMessage(speakersEnabled ? '🔊 Звук включен' : '🔇 Звук выключен');
+        function updateMicButton() {
+            if (isMuted) {
+                micBtn.textContent = '🎤 Микрофон выкл';
+                micBtn.classList.remove('mic-on');
+                micBtn.classList.add('mic-off');
+            } else {
+                micBtn.textContent = '🎤 Микрофон вкл';
+                micBtn.classList.remove('mic-off');
+                micBtn.classList.add('mic-on');
+            }
+            
+            // Обновляем статус в списке участников
+            const myStatus = document.getElementById(`status-${userStaticId}`);
+            if (myStatus) {
+                myStatus.innerHTML = isMuted ? '🔇' : '🎤';
+            }
         }
         
-        function playAudio(audioArray) {
-            if (!audioContext || audioContext.state === 'closed') {
-                audioContext = new AudioContext();
+        function toggleSpeakers() {
+            speakersEnabled = !speakersEnabled;
+            if (speakersEnabled) {
+                speakersBtn.textContent = '🔊 Звук вкл';
+                speakersBtn.classList.remove('speakers-off');
+                speakersBtn.classList.add('speakers-on');
+                addSystemMessage('🔊 Звук включен');
+            } else {
+                speakersBtn.textContent = '🔇 Звук выкл';
+                speakersBtn.classList.remove('speakers-on');
+                speakersBtn.classList.add('speakers-off');
+                addSystemMessage('🔇 Звук выключен');
             }
+        }
+        
+        // Визуализатор громкости
+        function updateVisualizer(volume) {
+            if (!voiceBars.length) return;
+            
+            // Преобразуем громкость в высоту столбцов (5-30px)
+            const height = Math.max(5, Math.min(30, volume * 80));
+            voiceBars.forEach(bar => {
+                bar.style.height = height + 'px';
+                if (volume > 0.3) {
+                    bar.style.background = '#ffeb3b';
+                } else if (volume > 0.15) {
+                    bar.style.background = '#4CAF50';
+                } else {
+                    bar.style.background = 'white';
+                }
+            });
+        }
+        
+        function resetVisualizer() {
+            voiceBars.forEach(bar => {
+                bar.style.height = '5px';
+                bar.style.background = 'white';
+            });
+        }
+        
+        // Воспроизведение аудио с высоким качеством
+        function playAudio(audioArray) {
+            if (!speakersEnabled) return;
+            
+            if (!audioContext || audioContext.state === 'closed') {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: AUDIO_CONFIG.sampleRate
+                });
+            }
+            
             if (audioContext.state === 'suspended') {
                 audioContext.resume();
             }
             
             try {
-                const buffer = audioContext.createBuffer(1, audioArray.length, audioContext.sampleRate);
+                const buffer = audioContext.createBuffer(1, audioArray.length, AUDIO_CONFIG.sampleRate);
                 buffer.copyToChannel(new Float32Array(audioArray), 0);
+                
                 const source = audioContext.createBufferSource();
                 source.buffer = buffer;
                 source.connect(audioContext.destination);
@@ -595,15 +759,12 @@
             }
         }
         
-        function showVoiceVisualizer(volume) {
-            const bars = document.querySelectorAll('.voice-bar');
-            const height = Math.min(volume * 200, 30);
-        }
-        
+        // Проверка микрофона
         function testMicrophone() {
             navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(() => {
-                    addSystemMessage('✅ Микрофон работает!');
+                .then(stream => {
+                    addSystemMessage('✅ Микрофон работает! Качество хорошее');
+                    stream.getTracks().forEach(track => track.stop());
                 })
                 .catch(() => {
                     addSystemMessage('❌ Микрофон не работает или доступ запрещен');
@@ -630,6 +791,10 @@
             msgDiv.textContent = text;
             messagesDiv.appendChild(msgDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            // Ограничиваем количество сообщений
+            while (messagesDiv.children.length > 100) {
+                messagesDiv.removeChild(messagesDiv.firstChild);
+            }
         }
         
         function addSystemMessage(text) {
@@ -647,7 +812,7 @@
         }
         
         // ============================================
-        // ВЫХОД ИЗ КОМНАТЫ
+        // ВЫХОД
         // ============================================
         async function leaveRoom() {
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -662,7 +827,7 @@
             window.location.href = '/dashboard.html';
         }
         
-        // Обработка Enter в поле ввода
+        // Обработка Enter
         messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMessage();
         });
@@ -673,7 +838,11 @@
         connectWebSocket();
         updateOnlineCount();
         setInterval(updateOnlineCount, 5000);
-        startMicrophone(); // Автоматически запрашиваем микрофон
+        
+        // Автоматически запрашиваем разрешение на микрофон
+        setTimeout(() => {
+            startMicrophone();
+        }, 1000);
     </script>
 </body>
 </html>

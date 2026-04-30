@@ -21,7 +21,122 @@ app.use((req, res, next) => {
 });
 
 // ============================================
-// API МАРШРУТЫ (ПРЯМАЯ РАБОТА С БД)
+// НАСТРОЙКА БАЗЫ ДАННЫХ (С ПРОВЕРКОЙ)
+// ============================================
+
+console.log('🔍 Проверка переменных окружения:');
+console.log('MYSQLHOST:', process.env.MYSQLHOST || 'не задан, используем localhost');
+console.log('MYSQLPORT:', process.env.MYSQLPORT || 'не задан, используем 3306');
+console.log('MYSQLUSER:', process.env.MYSQLUSER || 'не задан, используем root');
+console.log('MYSQLDATABASE:', process.env.MYSQLDATABASE || 'не задан, используем harmony_chat');
+
+// НАСТРОЙКА БД - ПРИОРИТЕТ ПЕРЕМЕННЫМ ОКРУЖЕНИЯ
+const dbConfig = {
+    host: process.env.MYSQLHOST || 'tuntable.proxy.rlwy.net',
+    port: parseInt(process.env.MYSQLPORT) || 56928,
+    user: process.env.MYSQLUSER || 'root',
+    password: process.env.MYSQLPASSWORD || '',
+    database: process.env.MYSQLDATABASE || 'railway',
+    waitForConnections: true,
+    connectionLimit: 10,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0
+};
+
+console.log('📡 Конфигурация БД:');
+console.log(`   Хост: ${dbConfig.host}`);
+console.log(`   Порт: ${dbConfig.port}`);
+console.log(`   База: ${dbConfig.database}`);
+console.log(`   Пользователь: ${dbConfig.user}`);
+
+const db = mysql.createPool(dbConfig);
+
+// Глобальные хранилища
+const userSessions = new Map();
+const clients = new Map();
+
+// ============================================
+// ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ
+// ============================================
+
+async function initDatabase() {
+    try {
+        const conn = await db.promise().getConnection();
+        
+        // Создаем таблицу пользователей
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                static_id VARCHAR(10) UNIQUE NOT NULL,
+                age INT,
+                password_hash VARCHAR(255) NOT NULL,
+                is_admin BOOLEAN DEFAULT FALSE,
+                is_banned BOOLEAN DEFAULT FALSE,
+                ban_reason TEXT,
+                unban_date DATETIME,
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Создаем таблицу комнат
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS rooms (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(50) NOT NULL,
+                type VARCHAR(10) DEFAULT 'voice',
+                max_people INT DEFAULT 10,
+                created_by VARCHAR(10),
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Создаем таблицу участников комнат
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS room_members (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                room_id INT,
+                user_static_id VARCHAR(10),
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+            )
+        `);
+        
+        // Создаем таблицу логов
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                action VARCHAR(255),
+                user_static_id VARCHAR(10),
+                target_static_id VARCHAR(10),
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        console.log('✅ База данных инициализирована');
+        conn.release();
+        
+    } catch (error) {
+        console.error('❌ Ошибка инициализации БД:', error.message);
+    }
+}
+
+// Проверка подключения к БД
+db.getConnection((err, connection) => {
+    if (err) {
+        console.error('❌ Ошибка подключения к MySQL:', err.message);
+        console.error('   Проверьте переменные окружения MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD');
+    } else {
+        console.log('✅ Подключение к MySQL успешно!');
+        connection.release();
+        initDatabase();
+    }
+});
+
+// ============================================
+// API МАРШРУТЫ
 // ============================================
 
 // Регистрация
@@ -41,8 +156,12 @@ app.post('/register.php', async (req, res) => {
         
         while (!isUnique) {
             static_id = '#' + Math.floor(Math.random() * 900000 + 100000).toString();
-            const [existing] = await db.promise().query("SELECT id FROM users WHERE static_id = ?", [static_id]);
-            if (existing.length === 0) isUnique = true;
+            try {
+                const [existing] = await db.promise().query("SELECT id FROM users WHERE static_id = ?", [static_id]);
+                if (existing.length === 0) isUnique = true;
+            } catch (err) {
+                isUnique = true;
+            }
         }
         
         // Хешируем пароль
@@ -59,7 +178,7 @@ app.post('/register.php', async (req, res) => {
         
     } catch (error) {
         console.error('Register error:', error);
-        res.json({ success: false, error: 'Ошибка сервера' });
+        res.json({ success: false, error: 'Ошибка сервера: ' + error.message });
     }
 });
 
@@ -90,7 +209,6 @@ app.post('/login.php', async (req, res) => {
             return res.json({ success: false, error: 'Неверный пароль' });
         }
         
-        // Сохраняем в сессию (используем глобальный объект)
         userSessions.set(static_id, {
             id: user.id,
             static_id: user.static_id,
@@ -210,106 +328,8 @@ app.get('/logout.php', (req, res) => {
     res.sendFile(path.join(__dirname, 'logout.php'));
 });
 
-// Все остальные GET запросы
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// ============================================
-// БАЗА ДАННЫХ
-// ============================================
-const dbConfig = {
-    host: process.env.MYSQLHOST || 'localhost',
-    port: parseInt(process.env.MYSQLPORT) || 3306,
-    user: process.env.MYSQLUSER || 'root',
-    password: process.env.MYSQLPASSWORD || '',
-    database: process.env.MYSQLDATABASE || 'harmony_chat',
-    waitForConnections: true,
-    connectionLimit: 10,
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 0
-};
-
-const db = mysql.createPool(dbConfig);
-
-// Глобальные хранилища
-const userSessions = new Map();
-const clients = new Map();
-
-// Инициализация базы данных
-async function initDatabase() {
-    try {
-        const conn = await db.promise().getConnection();
-        
-        // Создаем таблицу пользователей
-        await conn.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                static_id VARCHAR(10) UNIQUE NOT NULL,
-                age INT,
-                password_hash VARCHAR(255) NOT NULL,
-                is_admin BOOLEAN DEFAULT FALSE,
-                is_banned BOOLEAN DEFAULT FALSE,
-                ban_reason TEXT,
-                unban_date DATETIME,
-                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        
-        // Создаем таблицу комнат
-        await conn.query(`
-            CREATE TABLE IF NOT EXISTS rooms (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(50) NOT NULL,
-                type VARCHAR(10) DEFAULT 'voice',
-                max_people INT DEFAULT 10,
-                created_by VARCHAR(10),
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        
-        // Создаем таблицу участников комнат
-        await conn.query(`
-            CREATE TABLE IF NOT EXISTS room_members (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                room_id INT,
-                user_static_id VARCHAR(10),
-                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
-            )
-        `);
-        
-        // Создаем таблицу логов
-        await conn.query(`
-            CREATE TABLE IF NOT EXISTS logs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                action VARCHAR(255),
-                user_static_id VARCHAR(10),
-                target_static_id VARCHAR(10),
-                details TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        
-        console.log('✅ База данных инициализирована');
-        conn.release();
-        
-    } catch (error) {
-        console.error('❌ Ошибка инициализации БД:', error.message);
-    }
-}
-
-// Проверка подключения
-db.getConnection((err, connection) => {
-    if (err) {
-        console.error('❌ Ошибка подключения к MySQL:', err.message);
-    } else {
-        console.log('✅ Подключение к MySQL успешно!');
-        connection.release();
-        initDatabase();
-    }
 });
 
 // ============================================
@@ -318,13 +338,11 @@ db.getConnection((err, connection) => {
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Настройки голоса
 const VOICE_CONFIG = {
     minVolume: 0.05,
     activityTimeout: 300000
 };
 
-// Функции WebSocket
 function notifyRoomMembers(roomId, event, userId, extraData = null) {
     const message = { type: event, userId: userId };
     if (extraData) Object.assign(message, extraData);
@@ -359,7 +377,6 @@ function broadcastOnlineCount() {
     console.log(`📊 Онлайн: ${onlineCount} пользователей`);
 }
 
-// WebSocket соединение
 wss.on('connection', (ws, req) => {
     let userStaticId = null;
     let currentRoom = null;
@@ -379,7 +396,6 @@ wss.on('connection', (ws, req) => {
                     return;
                 }
                 
-                // Проверяем пользователя
                 const [rows] = await db.promise().query("SELECT * FROM users WHERE static_id = ?", [userStaticId]);
                 if (rows.length === 0) {
                     ws.send(JSON.stringify({ type: 'error', message: 'Пользователь не найден' }));
@@ -402,7 +418,6 @@ wss.on('connection', (ws, req) => {
                     client.lastActivity = Date.now();
                 }
                 
-                // Добавляем в БД
                 await db.promise().query(
                     "INSERT IGNORE INTO room_members (room_id, user_static_id) VALUES (?, ?)",
                     [currentRoom, userStaticId]

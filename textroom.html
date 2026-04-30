@@ -251,6 +251,13 @@
             transform: scale(1.02);
         }
         
+        /* Стили для отключенной кнопки при КД */
+        .message-input-area button:disabled {
+            background: #9E9E9E;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
         @media (max-width: 768px) {
             .main-content {
                 flex-direction: column;
@@ -309,10 +316,11 @@
             <div class="chat-area">
                 <div class="messages" id="messages">
                     <div class="system-message">🔔 Добро пожаловать в текстовую комнату!</div>
+                    <div class="system-message">⏱️ КД 2 секунды между сообщениями</div>
                 </div>
                 <div class="message-input-area">
                     <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500" autocomplete="off">
-                    <button onclick="sendMessage()">📨 Отправить</button>
+                    <button id="send-btn" onclick="sendMessage()">📨 Отправить</button>
                 </div>
             </div>
         </div>
@@ -325,10 +333,13 @@
         let ws = null;
         let roomId = null;
         let userStaticId = localStorage.getItem('userStaticId');
+        let lastMessageTime = 0;
+        const COOLDOWN_MS = 2000; // 2 секунды КД
         
         // DOM элементы
         const messageInput = document.getElementById('message-input');
         const messagesDiv = document.getElementById('messages');
+        const sendBtn = document.getElementById('send-btn');
         
         // ============================================
         // ТЕМНАЯ ТЕМА
@@ -424,21 +435,56 @@
         }
         
         // ============================================
-        // ТЕКСТОВЫЙ ЧАТ
+        // ТЕКСТОВЫЙ ЧАТ С КД
         // ============================================
+        function startCooldown() {
+            sendBtn.disabled = true;
+            const originalText = sendBtn.innerHTML;
+            let timeLeft = 2;
+            sendBtn.innerHTML = `⏱️ ${timeLeft}с`;
+            
+            const interval = setInterval(() => {
+                timeLeft--;
+                sendBtn.innerHTML = `⏱️ ${timeLeft}с`;
+                if (timeLeft <= 0) {
+                    clearInterval(interval);
+                    sendBtn.disabled = false;
+                    sendBtn.innerHTML = originalText;
+                }
+            }, 1000);
+        }
+        
         function sendMessage() {
             const msg = messageInput.value.trim();
-            if (!msg) return;
+            
+            // Проверка на пустое сообщение
+            if (!msg) {
+                addSystemMessage('❌ Нельзя отправить пустое сообщение');
+                return;
+            }
+            
+            // Проверка КД
+            const now = Date.now();
+            if (now - lastMessageTime < COOLDOWN_MS) {
+                const remaining = Math.ceil((COOLDOWN_MS - (now - lastMessageTime)) / 1000);
+                addSystemMessage(`⏱️ Подождите ${remaining} секунд перед следующим сообщением`);
+                return;
+            }
+            
             if (ws?.readyState === WebSocket.OPEN) {
+                lastMessageTime = now;
                 ws.send(JSON.stringify({ type: 'text_message', message: msg, from: userStaticId }));
                 addMessage(`👤 Вы`, msg, true);
                 messageInput.value = '';
                 messageInput.focus();
+                startCooldown();
                 
                 // Автоскролл вниз
                 setTimeout(() => {
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
                 }, 50);
+            } else {
+                addSystemMessage('❌ Нет соединения с сервером');
             }
         }
         

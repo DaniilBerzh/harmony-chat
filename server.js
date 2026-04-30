@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
+const fs = require('fs');
 const mysql = require('mysql2');
 const crypto = require('crypto');
 
@@ -41,6 +42,19 @@ const dbConfig = {
 const db = mysql.createPool(dbConfig);
 const userSessions = new Map();
 const clients = new Map();
+
+// Функция для отправки PHP файлов как HTML
+function sendPhpAsHtml(res, filename) {
+    const filePath = path.join(__dirname, filename);
+    fs.readFile(filePath, 'utf8', (err, data) => {
+        if (err) {
+            res.status(500).send('Error loading page');
+            return;
+        }
+        res.setHeader('Content-Type', 'text/html');
+        res.send(data);
+    });
+}
 
 // ============================================
 // ИНИЦИАЛИЗАЦИЯ БД
@@ -159,7 +173,7 @@ app.post('/register.php', async (req, res) => {
     }
 });
 
-// Авторизация (ИСПРАВЛЕНО)
+// Авторизация
 app.post('/login.php', async (req, res) => {
     console.log('📝 Авторизация:', req.body);
     
@@ -279,18 +293,18 @@ app.get('/api.php', async (req, res) => {
 });
 
 // ============================================
-// СТАТИЧЕСКИЕ ФАЙЛЫ
+// СТАТИЧЕСКИЕ ФАЙЛЫ (PHP как HTML)
 // ============================================
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    sendPhpAsHtml(res, 'index.html');
 });
 
 app.get('/dashboard.php', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dashboard.php'));
+    sendPhpAsHtml(res, 'dashboard.php');
 });
 
 app.get('/admin.php', (req, res) => {
-    res.sendFile(path.join(__dirname, 'admin.php'));
+    sendPhpAsHtml(res, 'admin.php');
 });
 
 app.get('/style.css', (req, res) => {
@@ -302,11 +316,11 @@ app.get('/script.js', (req, res) => {
 });
 
 app.get('/logout.php', (req, res) => {
-    res.sendFile(path.join(__dirname, 'logout.php'));
+    sendPhpAsHtml(res, 'logout.php');
 });
 
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    sendPhpAsHtml(res, 'index.html');
 });
 
 // ============================================

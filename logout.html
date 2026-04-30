@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Выход - Harmony Chat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🎤 Harmony Chat</h1>
+            <p>До свидания!</p>
+        </div>
+        <div class="auth-box">
+            <p>Вы вышли из аккаунта.</p>
+            <a href="/" class="tab-btn" style="display: inline-block; text-align: center; text-decoration: none;">Войти снова</a>
+        </div>
+    </div>
+    <script>
+        localStorage.removeItem('userStaticId');
+        sessionStorage.clear();
+    </script>
+</body>
+</html>

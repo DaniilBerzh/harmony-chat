@@ -65,7 +65,6 @@ async function initDatabase() {
     try {
         const conn = await db.promise().getConnection();
         
-        // Таблица пользователей
         await conn.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -81,19 +80,18 @@ async function initDatabase() {
             )
         `);
         
-        // Таблица комнат
         await conn.query(`
             CREATE TABLE IF NOT EXISTS rooms (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(50) NOT NULL,
                 type VARCHAR(10) DEFAULT 'voice',
                 max_people INT DEFAULT 10,
+                created_by VARCHAR(10),
                 is_active BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
         
-        // Таблица участников комнат
         await conn.query(`
             CREATE TABLE IF NOT EXISTS room_members (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -104,7 +102,6 @@ async function initDatabase() {
             )
         `);
         
-        // Таблица логов
         await conn.query(`
             CREATE TABLE IF NOT EXISTS logs (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -113,31 +110,6 @@ async function initDatabase() {
                 target_static_id VARCHAR(10),
                 details TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        
-        // Таблица банов
-        await conn.query(`
-            CREATE TABLE IF NOT EXISTS ban_list (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_static_id VARCHAR(10),
-                banned_by VARCHAR(10),
-                reason TEXT,
-                ban_date DATETIME,
-                unban_date DATETIME
-            )
-        `);
-        
-        // Таблица репортов
-        await conn.query(`
-            CREATE TABLE IF NOT EXISTS reports (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                reporter_static_id VARCHAR(10),
-                reported_static_id VARCHAR(10),
-                reason TEXT,
-                status VARCHAR(20) DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                resolved_at DATETIME
             )
         `);
         
@@ -171,14 +143,31 @@ function broadcastToRoom(roomId, message) {
     }
 }
 
-// Отправка онлайн счетчика
-function broadcastOnlineCount() {
-    const onlineCount = clients.size;
-    for (let [id, client] of clients.entries()) {
-        if (client.ws?.readyState === WebSocket.OPEN) {
-            client.ws.send(JSON.stringify({ type: 'online_count', count: onlineCount }));
+// Обновление онлайн-счетчика для всех
+async function broadcastOnlineCount() {
+    try {
+        const [rows] = await db.promise().query(
+            "SELECT COUNT(DISTINCT user_static_id) as count FROM room_members"
+        );
+        const totalOnline = rows[0].count;
+        
+        for (let [id, client] of clients.entries()) {
+            if (client.ws?.readyState === WebSocket.OPEN) {
+                client.ws.send(JSON.stringify({ type: 'online_count', count: totalOnline }));
+            }
         }
-    }
+    } catch(e) {}
+}
+
+// Обновление онлайна в конкретной комнате
+async function updateRoomOnlineCount(roomId) {
+    try {
+        const [rows] = await db.promise().query(
+            "SELECT COUNT(*) as count FROM room_members WHERE room_id = ?",
+            [roomId]
+        );
+        broadcastToRoom(roomId, { type: 'room_online_count', count: rows[0].count });
+    } catch(e) {}
 }
 
 // ============================================
@@ -216,17 +205,12 @@ app.post('/api/register', async (req, res) => {
             [static_id, age, password_hash]
         );
         
-        await db.promise().query(
-            "INSERT INTO logs (action, user_static_id, details) VALUES (?, ?, ?)",
-            ['register', static_id, 'Новая регистрация']
-        );
-        
         console.log(`✅ Зарегистрирован: ${static_id}`);
         res.json({ success: true, static_id: static_id });
         
     } catch (error) {
         console.error('Register error:', error);
-        res.json({ success: false, error: 'Ошибка сервера: ' + error.message });
+        res.json({ success: false, error: 'Ошибка сервера' });
     }
 });
 
@@ -251,11 +235,6 @@ app.post('/api/login', async (req, res) => {
         }
         
         const user = rows[0];
-        
-        if (user.is_banned && user.unban_date && new Date(user.unban_date) > new Date()) {
-            return res.json({ success: false, error: `Вы забанены до ${new Date(user.unban_date).toLocaleString()}` });
-        }
-        
         const password_hash = crypto.createHash('sha256').update(password).digest('hex');
         
         if (user.password_hash !== password_hash) {
@@ -267,11 +246,6 @@ app.post('/api/login', async (req, res) => {
             static_id: user.static_id,
             is_admin: user.is_admin === 1
         });
-        
-        await db.promise().query(
-            "INSERT INTO logs (action, user_static_id, details) VALUES (?, ?, ?)",
-            ['login', static_id, 'Вход в систему']
-        );
         
         console.log(`✅ Авторизован: ${static_id}`);
         res.json({ success: true });
@@ -299,21 +273,6 @@ app.get('/api/rooms', async (req, res) => {
     }
 });
 
-// Получить участников комнаты
-app.get('/api/rooms/:id/members', async (req, res) => {
-    try {
-        const roomId = req.params.id;
-        const [rows] = await db.promise().query(
-            "SELECT user_static_id FROM room_members WHERE room_id = ?",
-            [roomId]
-        );
-        res.json({ members: rows.map(r => r.user_static_id) });
-    } catch (error) {
-        console.error('Get members error:', error);
-        res.json({ members: [] });
-    }
-});
-
 // Получить онлайн счетчик
 app.get('/api/online', async (req, res) => {
     try {
@@ -322,7 +281,6 @@ app.get('/api/online', async (req, res) => {
         );
         res.json({ count: rows[0].count });
     } catch (error) {
-        console.error('Online count error:', error);
         res.json({ count: 0 });
     }
 });
@@ -332,15 +290,15 @@ app.post('/api/rooms', async (req, res) => {
     console.log('📝 Создание комнаты:', req.body);
     
     try {
-        const { name, max_people, type } = req.body;
+        const { name, max_people, type, created_by } = req.body;
         
         if (!name) {
             return res.json({ success: false, error: 'Название комнаты обязательно' });
         }
         
         const [result] = await db.promise().query(
-            "INSERT INTO rooms (name, max_people, type) VALUES (?, ?, ?)",
-            [name, max_people || 10, type || 'voice']
+            "INSERT INTO rooms (name, max_people, type, created_by) VALUES (?, ?, ?, ?)",
+            [name, max_people || 10, type || 'voice', created_by || 'system']
         );
         
         res.json({ success: true, room_id: result.insertId, room_name: name });
@@ -381,7 +339,10 @@ app.post('/api/rooms/:id/join', async (req, res) => {
             [roomId, user_static_id]
         );
         
-        // Оповещаем всех в комнате через WebSocket
+        // Обновляем онлайн в комнате
+        await updateRoomOnlineCount(roomId);
+        
+        // Оповещаем всех в комнате
         broadcastToRoom(parseInt(roomId), {
             type: 'user_joined',
             userId: user_static_id
@@ -407,6 +368,9 @@ app.post('/api/rooms/:id/leave', async (req, res) => {
             [roomId, user_static_id]
         );
         
+        // Обновляем онлайн в комнате
+        await updateRoomOnlineCount(roomId);
+        
         // Оповещаем всех в комнате
         broadcastToRoom(parseInt(roomId), {
             type: 'user_left',
@@ -427,8 +391,20 @@ app.delete('/api/rooms/:id', async (req, res) => {
     try {
         const roomId = req.params.id;
         
+        // Получаем название комнаты
+        const [room] = await db.promise().query("SELECT name FROM rooms WHERE id = ?", [roomId]);
+        
+        // Удаляем всех участников
         await db.promise().query("DELETE FROM room_members WHERE room_id = ?", [roomId]);
+        // Удаляем комнату
         await db.promise().query("DELETE FROM rooms WHERE id = ?", [roomId]);
+        
+        // Оповещаем всех кто был в комнате
+        broadcastToRoom(parseInt(roomId), {
+            type: 'room_deleted',
+            roomId: roomId,
+            message: 'Комната удалена'
+        });
         
         res.json({ success: true });
     } catch (error) {
@@ -452,150 +428,33 @@ app.get('/api/checkAdmin', async (req, res) => {
     }
 });
 
-// ============================================
-// АДМИНИСТРАТИВНЫЕ API
-// ============================================
-
-app.get('/api/admin/logs', async (req, res) => {
+// Получить участников комнаты
+app.get('/api/rooms/:id/members', async (req, res) => {
     try {
-        const [rows] = await db.promise().query("SELECT * FROM logs ORDER BY created_at DESC LIMIT 100");
-        res.json(rows);
+        const roomId = req.params.id;
+        const [rows] = await db.promise().query(
+            "SELECT user_static_id FROM room_members WHERE room_id = ?",
+            [roomId]
+        );
+        res.json({ members: rows.map(r => r.user_static_id) });
     } catch (error) {
-        res.json([]);
-    }
-});
-
-app.get('/api/admin/users', async (req, res) => {
-    try {
-        const [rows] = await db.promise().query(`
-            SELECT u.*, 
-            (SELECT COUNT(*) FROM room_members WHERE user_static_id = u.static_id) > 0 as is_online 
-            FROM users u ORDER BY u.created_at DESC
-        `);
-        res.json(rows);
-    } catch (error) {
-        res.json([]);
-    }
-});
-
-app.get('/api/admin/bans', async (req, res) => {
-    try {
-        const [rows] = await db.promise().query("SELECT * FROM ban_list ORDER BY ban_date DESC");
-        res.json(rows);
-    } catch (error) {
-        res.json([]);
-    }
-});
-
-app.get('/api/admin/reports', async (req, res) => {
-    try {
-        const [rows] = await db.promise().query("SELECT * FROM reports ORDER BY created_at DESC");
-        res.json(rows);
-    } catch (error) {
-        res.json([]);
-    }
-});
-
-app.post('/api/admin/reports', async (req, res) => {
-    const { action, report_id } = req.body;
-    
-    try {
-        if (action === 'accept') {
-            await db.promise().query(
-                "UPDATE reports SET status = 'accepted', resolved_at = NOW() WHERE id = ?",
-                [report_id]
-            );
-            res.json({ success: true, message: 'Репорт принят' });
-        } else if (action === 'cancel') {
-            await db.promise().query(
-                "UPDATE reports SET status = 'cancelled', resolved_at = NOW() WHERE id = ?",
-                [report_id]
-            );
-            res.json({ success: true, message: 'Репорт отклонен' });
-        } else {
-            res.json({ success: false, error: 'Неизвестное действие' });
-        }
-    } catch (error) {
-        res.json({ success: false, error: error.message });
-    }
-});
-
-app.post('/api/admin/command', async (req, res) => {
-    const { command, admin_id } = req.body;
-    console.log(`📝 Команда от ${admin_id}: ${command}`);
-    
-    try {
-        const [admin] = await db.promise().query("SELECT is_admin FROM users WHERE static_id = ?", [admin_id]);
-        if (admin.length === 0 || !admin[0].is_admin) {
-            return res.json({ success: false, error: 'Нет прав администратора' });
-        }
-        
-        const parts = command.split(' ');
-        const cmd = parts[0].toLowerCase();
-        
-        if (cmd === '/ban' && parts.length >= 4) {
-            const target = parts[1];
-            const days = parseInt(parts[2]);
-            const reason = parts.slice(3).join(' ');
-            const unbanDate = new Date();
-            unbanDate.setDate(unbanDate.getDate() + days);
-            
-            await db.promise().query(
-                "UPDATE users SET is_banned = 1, ban_reason = ?, unban_date = ?, is_admin = 0 WHERE static_id = ?",
-                [reason, unbanDate, target]
-            );
-            
-            await db.promise().query(
-                "INSERT INTO ban_list (user_static_id, banned_by, reason, ban_date, unban_date) VALUES (?, ?, ?, NOW(), ?)",
-                [target, admin_id, reason, unbanDate]
-            );
-            
-            res.json({ success: true, message: `Пользователь ${target} забанен на ${days} дней` });
-        }
-        else if (cmd === '/unban' && parts.length >= 2) {
-            const target = parts[1];
-            
-            await db.promise().query(
-                "UPDATE users SET is_banned = 0, ban_reason = NULL, unban_date = NULL WHERE static_id = ?",
-                [target]
-            );
-            
-            res.json({ success: true, message: `Пользователь ${target} разбанен` });
-        }
-        else if (cmd === '/makeadmin' && parts.length >= 2) {
-            const target = parts[1];
-            
-            await db.promise().query(
-                "UPDATE users SET is_admin = 1 WHERE static_id = ?",
-                [target]
-            );
-            
-            res.json({ success: true, message: `Пользователь ${target} назначен администратором` });
-        }
-        else {
-            res.json({ success: false, error: 'Неизвестная команда. Доступно: /ban, /unban, /makeadmin' });
-        }
-    } catch (error) {
-        res.json({ success: false, error: error.message });
+        res.json({ members: [] });
     }
 });
 
 // ============================================
-// СТАТИЧЕСКИЕ ФАЙЛЫ (HTML)
+// СТАТИЧЕСКИЕ ФАЙЛЫ
 // ============================================
 app.get('/', (req, res) => { sendHtml(res, 'index.html'); });
-app.get('/index.html', (req, res) => { sendHtml(res, 'index.html'); });
 app.get('/dashboard.html', (req, res) => { sendHtml(res, 'dashboard.html'); });
 app.get('/admin.html', (req, res) => { sendHtml(res, 'admin.html'); });
 app.get('/room.html', (req, res) => { sendHtml(res, 'room.html'); });
-app.get('/login.html', (req, res) => { sendHtml(res, 'login.html'); });
-app.get('/register.html', (req, res) => { sendHtml(res, 'register.html'); });
 app.get('/logout.html', (req, res) => { sendHtml(res, 'logout.html'); });
 app.get('/style.css', (req, res) => { res.sendFile(path.join(__dirname, 'style.css')); });
 app.get('/script.js', (req, res) => { res.sendFile(path.join(__dirname, 'script.js')); });
 
 // ============================================
-// WEBSOCKET СЕРВЕР (ОПТИМИЗИРОВАННЫЙ)
+// WEBSOCKET (ОПТИМИЗИРОВАННЫЙ)
 // ============================================
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -604,13 +463,10 @@ wss.on('connection', (ws) => {
     let userStaticId = null;
     let currentRoom = null;
     
-    console.log('🔌 Новое WebSocket соединение');
-    
     ws.on('message', async (data) => {
         try {
             const msg = JSON.parse(data);
             
-            // Аутентификация
             if (msg.type === 'auth') {
                 userStaticId = msg.staticId;
                 clients.set(userStaticId, { ws, roomId: null });
@@ -618,15 +474,12 @@ wss.on('connection', (ws) => {
                 console.log(`✅ Auth: ${userStaticId}`);
                 broadcastOnlineCount();
             }
-            
-            // Присоединение к комнате
             else if (msg.type === 'join_room') {
                 currentRoom = msg.roomId;
                 if (clients.has(userStaticId)) {
                     clients.get(userStaticId).roomId = currentRoom;
                 }
                 
-                // Получаем список участников из БД
                 const [members] = await db.promise().query(
                     "SELECT user_static_id FROM room_members WHERE room_id = ?",
                     [currentRoom]
@@ -638,20 +491,17 @@ wss.on('connection', (ws) => {
                     members: memberList
                 }));
                 
-                // Оповещаем остальных о новом участнике
                 broadcastToRoom(currentRoom, {
                     type: 'user_joined',
                     userId: userStaticId
                 });
                 
-                console.log(`🎤 ${userStaticId} присоединился к комнате ${currentRoom}`);
+                console.log(`🎤 ${userStaticId} joined room ${currentRoom}`);
             }
-            
-            // Голосовые данные (оптимизированные)
             else if (msg.type === 'voice_data') {
                 if (!currentRoom) return;
                 
-                // Пересылаем голос всем в комнате кроме отправителя
+                // Быстрая пересылка без задержек
                 for (let [id, client] of clients.entries()) {
                     if (client.roomId === currentRoom && id !== userStaticId) {
                         if (client.ws?.readyState === WebSocket.OPEN) {
@@ -663,31 +513,18 @@ wss.on('connection', (ws) => {
                         }
                     }
                 }
-                
-                // Отправляем индикатор говорящего (редко, чтобы не спамить)
-                if (Math.random() < 0.1) {
-                    broadcastToRoom(currentRoom, {
-                        type: 'speaking',
-                        userId: userStaticId
-                    });
-                }
             }
-            
-            // Текстовые сообщения
             else if (msg.type === 'text_message') {
                 if (!currentRoom) return;
                 
                 broadcastToRoom(currentRoom, {
                     type: 'text_message',
                     from: userStaticId,
-                    message: msg.message,
-                    timestamp: msg.timestamp || Date.now()
+                    message: msg.message
                 });
                 
                 console.log(`💬 ${userStaticId}: ${msg.message.substring(0, 50)}`);
             }
-            
-            // Выход из комнаты
             else if (msg.type === 'leave_room') {
                 if (currentRoom) {
                     broadcastToRoom(currentRoom, {
@@ -699,15 +536,11 @@ wss.on('connection', (ws) => {
                         clients.get(userStaticId).roomId = null;
                     }
                     currentRoom = null;
-                    console.log(`🚪 ${userStaticId} покинул комнату`);
                 }
             }
-            
-            // Ping/Pong
             else if (msg.type === 'ping') {
                 ws.send(JSON.stringify({ type: 'pong' }));
             }
-            
         } catch (error) {
             console.error('WebSocket error:', error);
         }
@@ -715,25 +548,13 @@ wss.on('connection', (ws) => {
     
     ws.on('close', () => {
         if (userStaticId) {
-            console.log(`❌ Отключение ${userStaticId}`);
-            
-            // Удаляем из комнат в БД
-            if (currentRoom) {
-                db.promise().query(
-                    "DELETE FROM room_members WHERE room_id = ? AND user_static_id = ?",
-                    [currentRoom, userStaticId]
-                ).catch(err => console.error('Delete member error:', err));
-            }
-            
+            console.log(`❌ ${userStaticId} disconnected`);
             clients.delete(userStaticId);
             broadcastOnlineCount();
         }
     });
 });
 
-// ============================================
-// ЗАПУСК СЕРВЕРА
-// ============================================
 server.listen(port, '0.0.0.0', () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ Harmony Chat сервер запущен!');

@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Harmony Chat - Голосовая комната</title>
-    <link rel="icon" type="image/png" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23764ba2'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white'%3E🎤%3C/text%3E%3C/svg%3E">
-    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23764ba2'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white'%3E🎤%3C/text%3E%3C/svg%3E">
     <style>
         :root {
             --bg-primary: #f5f5f5;
@@ -201,11 +200,17 @@
         }
         
         .message {
-            padding: 6px 10px;
+            padding: 8px 12px;
             margin: 4px 0;
             border-radius: 8px;
             background: var(--bg-secondary);
             word-break: break-word;
+            border-left: 3px solid #667eea;
+        }
+        
+        .my-message {
+            background: linear-gradient(135deg, #667eea20, #764ba220);
+            border-left: 3px solid #764ba2;
         }
         
         .system-message {
@@ -215,37 +220,78 @@
             background: #e3f2fd;
             font-style: italic;
             font-size: 12px;
+            text-align: center;
         }
         
         [data-theme="dark"] .system-message { background: #1a2a3a; }
         
+        /* ============================================
+           УВЕЛИЧЕННАЯ СТРОКА ВВОДА (на всю ширину)
+        ============================================ */
         .message-input-area {
             display: flex;
-            gap: 8px;
+            gap: 10px;
+            padding: 10px 0;
+            width: 100%;
         }
         
         .message-input-area input {
             flex: 1;
-            padding: 10px;
+            padding: 14px 20px;
+            font-size: 16px;
             border: 2px solid var(--border-color);
-            border-radius: 8px;
+            border-radius: 30px;
             background: var(--bg-primary);
             color: var(--text-primary);
+            outline: none;
+            transition: all 0.3s;
+            width: 100%;
+            min-width: 0;
+        }
+        
+        .message-input-area input:focus {
+            border-color: var(--gradient-start);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
         }
         
         .message-input-area button {
-            padding: 10px 20px;
+            padding: 14px 30px;
+            font-size: 16px;
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 30px;
             cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        
+        .message-input-area button:hover {
+            transform: scale(1.02);
         }
         
         @media (max-width: 768px) {
-            .main-content { flex-direction: column; }
-            .members-sidebar { width: 100%; order: -1; }
-            .room-controls { justify-content: center; }
+            .main-content {
+                flex-direction: column;
+            }
+            .members-sidebar {
+                width: 100%;
+                order: -1;
+            }
+            .room-controls {
+                justify-content: center;
+            }
+            .message-input-area {
+                gap: 8px;
+            }
+            .message-input-area input {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+            .message-input-area button {
+                padding: 12px 20px;
+                font-size: 14px;
+            }
         }
     </style>
 </head>
@@ -280,7 +326,7 @@
                     <div class="system-message">🔔 Добро пожаловать в голосовую комнату!</div>
                 </div>
                 <div class="message-input-area">
-                    <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500">
+                    <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500" autocomplete="off">
                     <button onclick="sendMessage()">📨 Отправить</button>
                 </div>
             </div>
@@ -292,10 +338,10 @@
         // НАСТРОЙКИ ДЛЯ МИНИМАЛЬНОЙ ЗАДЕРЖКИ
         // ============================================
         const AUDIO_CONFIG = {
-            frameSize: 1024,           // Маленький буфер (меньше задержка)
-            throttleMs: 25,            // Отправка каждые 25ms (40 кадров/сек)
-            volumeThreshold: 0.008,    // Порог чувствительности
-            sampleRate: 44100          // Частота дискретизации
+            frameSize: 1024,
+            throttleMs: 25,
+            volumeThreshold: 0.008,
+            sampleRate: 44100
         };
         
         // ============================================
@@ -423,7 +469,7 @@
         }
         
         // ============================================
-        // МИКРОФОН (МИНИМАЛЬНАЯ ЗАДЕРЖКА)
+        // МИКРОФОН
         // ============================================
         async function startMicrophone() {
             try {
@@ -450,13 +496,11 @@
                     for (let i = 0; i < inputData.length; i++) volume += Math.abs(inputData[i]);
                     volume /= inputData.length;
                     
-                    // Визуализация
                     const height = Math.min(25, volume * 100);
                     voiceBars.forEach(bar => bar.style.height = Math.max(3, height) + 'px');
                     
                     if (volume > AUDIO_CONFIG.volumeThreshold) {
                         lastSendTime = now;
-                        // Отправляем без сжатия для быстрой передачи
                         ws.send(JSON.stringify({ 
                             type: 'voice_data', 
                             audio: Array.from(inputData),
@@ -509,7 +553,6 @@
             addSystemMessage(speakersEnabled ? '🔊 Звук включен' : '🔇 Звук выключен');
         }
         
-        // Быстрое воспроизведение без буферизации
         function playAudio(audioArray) {
             if (!speakersEnabled) return;
             if (!audioContext || audioContext.state === 'closed') {
@@ -543,6 +586,7 @@
                 ws.send(JSON.stringify({ type: 'text_message', message: msg, id: ++messageId }));
                 addMessage(`👤 Вы: ${msg}`);
                 messageInput.value = '';
+                messageInput.focus();
             }
         }
         
@@ -575,7 +619,13 @@
             window.location.href = '/dashboard.html';
         }
         
-        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        // Обработка Enter
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
         
         // ============================================
         // ЗАПУСК

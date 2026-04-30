@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+header('Content-Type: application/json');
 
 $data = json_decode(file_get_contents('php://input'), true);
 $static_id = $data['static_id'] ?? '';
@@ -18,7 +19,7 @@ if ($user && password_verify($password, $user['password_hash'])) {
     $_SESSION['static_id'] = $user['static_id'];
     $_SESSION['is_admin'] = $user['is_admin'];
     logAction($pdo, 'login', $static_id);
-    echo json_encode(['success' => true]);
+    echo json_encode(['success' => true, 'redirect' => 'dashboard.php']);
 } else {
     echo json_encode(['success' => false, 'error' => 'Неверный Static ID или пароль']);
 }

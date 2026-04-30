@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Harmony Chat - Голосовой чат</title>
-    <link rel="icon" type="image/png" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23764ba2'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white'%3E🎤%3C/text%3E%3C/svg%3E">
-    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23764ba2'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white'%3E🎤%3C/text%3E%3C/svg%3E">
     <style>
         :root {
             --bg-primary: #f5f5f5;
@@ -81,8 +80,15 @@
             font-size: 14px;
         }
         
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        @keyframes glow { 0%, 100% { box-shadow: 0 2px 5px rgba(76, 175, 80, 0.3); } 50% { box-shadow: 0 2px 15px rgba(76, 175, 80, 0.6); } }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 2px 5px rgba(76, 175, 80, 0.3); }
+            50% { box-shadow: 0 2px 15px rgba(76, 175, 80, 0.6); }
+        }
         
         .theme-btn {
             background: var(--bg-primary);
@@ -207,15 +213,14 @@
             font-size: 13px;
         }
         
-        .delete-btn {
-            background: #f44336;
-            padding: 8px 12px;
+        .disabled-btn {
+            background: #9E9E9E;
+            padding: 8px 15px;
             width: auto;
             margin: 0;
             font-size: 13px;
+            cursor: not-allowed;
         }
-        
-        .delete-btn:hover { background: #d32f2f; }
         
         .messages {
             flex: 1;
@@ -242,12 +247,22 @@
             color: #e0e0e0;
         }
         
+        .voice-maintenance {
+            background: #ff9800;
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+        
         @media (max-width: 768px) {
             .main-panel { flex-direction: column; }
             .rooms-sidebar { width: 100%; }
             .header { flex-direction: column; text-align: center; }
             .room-actions { flex-direction: column; }
-            .join-btn, .delete-btn { width: 100%; }
+            .join-btn, .disabled-btn { width: 100%; }
         }
     </style>
 </head>
@@ -272,14 +287,18 @@
                     <input type="text" id="room-name" placeholder="Название комнаты" maxlength="50">
                     <input type="number" id="room-max" placeholder="Макс. участников" value="10" min="1" max="50">
                     <select id="room-type">
-                        <option value="voice">🎤 Голосовая</option>
                         <option value="text">💬 Текстовая</option>
+                        <option value="voice" disabled>🎤 Голосовая (в разработке)</option>
                     </select>
                     <button onclick="createRoom()">Создать комнату</button>
                 </div>
                 
                 <div class="rooms-list-container">
                     <h3>📢 Доступные комнаты</h3>
+                    <div class="voice-maintenance">
+                        🎤 Голосовые комнаты временно на техническом обслуживании<br>
+                        💬 Доступны только текстовые комнаты
+                    </div>
                     <div id="rooms-list"></div>
                 </div>
             </div>
@@ -288,12 +307,16 @@
                 <div id="current-room-info"></div>
                 <div id="messages" class="messages">
                     <div class="system-message">🔔 Добро пожаловать в Harmony Chat! Создайте или выберите комнату.</div>
+                    <div class="system-message">💬 Сейчас доступны только текстовые комнаты. Голосовые скоро появятся!</div>
                 </div>
             </div>
         </div>
     </div>
     
     <script>
+        // ============================================
+        // ТЕМНАЯ ТЕМА
+        // ============================================
         function loadTheme() {
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-theme', savedTheme);
@@ -312,37 +335,58 @@
         
         loadTheme();
         
+        // ============================================
+        // ПЕРЕМЕННЫЕ
+        // ============================================
         let userStaticId = localStorage.getItem('userStaticId');
-        if (!userStaticId) window.location.href = '/';
+        
+        if (!userStaticId) {
+            window.location.href = '/';
+        }
+        
         document.getElementById('user-data').dataset.staticId = userStaticId;
         
+        // ============================================
+        // ОНЛАЙН СЧЕТЧИК
+        // ============================================
         async function fetchOnlineCount() {
             try {
                 const response = await fetch('/api/online');
                 const data = await response.json();
                 const counter = document.getElementById('online-counter');
                 if (counter) counter.textContent = data.count + ' онлайн';
-            } catch (error) { console.error(error); }
+            } catch (error) {
+                console.error('Fetch online count error:', error);
+            }
         }
         
+        // ============================================
+        // КОМНАТЫ
+        // ============================================
         async function loadRooms() {
             try {
                 const response = await fetch('/api/rooms');
                 const rooms = await response.json();
                 displayRooms(rooms);
-            } catch (error) { console.error(error); }
+            } catch (error) {
+                console.error('Load rooms error:', error);
+            }
         }
         
         function displayRooms(rooms) {
             const container = document.getElementById('rooms-list');
             if (!container) return;
+            
             if (rooms.length === 0) {
                 container.innerHTML = '<div class="info" style="text-align:center; padding:20px;">📭 Нет комнат. Создайте первую!</div>';
                 return;
             }
+            
             container.innerHTML = '';
             rooms.forEach(room => {
                 const typeIcon = room.type === 'voice' ? '🎤' : '💬';
+                const isVoice = room.type === 'voice';
+                
                 const roomDiv = document.createElement('div');
                 roomDiv.className = 'room-item';
                 roomDiv.innerHTML = `
@@ -351,7 +395,10 @@
                         <div class="room-members">👥 ${room.current_members || 0}/${room.max_people}</div>
                     </div>
                     <div class="room-actions">
-                        <button class="join-btn" onclick="joinRoom(${room.id}, '${room.type}', '${escapeHtml(room.name)}')">Войти</button>
+                        ${isVoice ? 
+                            `<button class="disabled-btn" disabled>🎤 В разработке</button>` : 
+                            `<button class="join-btn" onclick="joinRoom(${room.id}, '${room.type}', '${escapeHtml(room.name)}')">💬 Войти</button>`
+                        }
                     </div>
                 `;
                 container.appendChild(roomDiv);
@@ -362,24 +409,47 @@
             const name = document.getElementById('room-name').value.trim();
             const max = parseInt(document.getElementById('room-max').value);
             const type = document.getElementById('room-type').value;
-            if (!name) { alert('Введите название комнаты'); return; }
+            
+            if (!name) {
+                alert('Введите название комнаты');
+                return;
+            }
+            
+            // Проверка - создаем только текстовые комнаты
+            if (type === 'voice') {
+                alert('🎤 Голосовые комнаты временно недоступны. Создайте текстовую комнату.');
+                return;
+            }
+            
             try {
                 const response = await fetch('/api/rooms', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, max_people: max, type })
+                    body: JSON.stringify({ name, max_people: max, type: 'text' })
                 });
                 const data = await response.json();
+                
                 if (data.success) {
                     addSystemMessage(`✅ Комната "${name}" создана!`);
                     document.getElementById('room-name').value = '';
                     loadRooms();
-                } else { alert('Ошибка: ' + data.error); }
-            } catch (error) { console.error(error); alert('Ошибка создания комнаты'); }
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Create room error:', error);
+                alert('Ошибка создания комнаты');
+            }
         }
         
+        // Функция входа в комнату (только текстовые)
         async function joinRoom(roomId, roomType, roomName) {
             if (roomType === 'voice') {
+                alert('🎤 Голосовые комнаты временно на техническом обслуживании. Используйте текстовые комнаты.');
+                return;
+            }
+            
+            if (roomType === 'text') {
                 try {
                     const response = await fetch(`/api/rooms/${roomId}/join`, {
                         method: 'POST',
@@ -387,13 +457,22 @@
                         body: JSON.stringify({ user_static_id: userStaticId })
                     });
                     const data = await response.json();
+                    
                     if (data.success) {
-                        window.location.href = `/room.html?id=${roomId}&name=${encodeURIComponent(roomName)}`;
-                    } else { alert('Ошибка: ' + data.error); }
-                } catch (error) { console.error(error); alert('Ошибка входа в комнату'); }
-            } else { alert('Текстовая комната в разработке'); }
+                        window.location.href = `/textroom.html?id=${roomId}&name=${encodeURIComponent(roomName)}`;
+                    } else {
+                        alert('Ошибка: ' + data.error);
+                    }
+                } catch (error) {
+                    console.error('Join room error:', error);
+                    alert('Ошибка входа в комнату');
+                }
+            }
         }
         
+        // ============================================
+        // СООБЩЕНИЯ
+        // ============================================
         function addSystemMessage(text) {
             const messagesDiv = document.getElementById('messages');
             if (!messagesDiv) return;
@@ -410,20 +489,31 @@
             return div.innerHTML;
         }
         
+        // ============================================
+        // ПРОВЕРКА АДМИНА
+        // ============================================
         async function checkAdmin() {
             try {
                 const response = await fetch(`/api/checkAdmin?static_id=${userStaticId}`);
                 const data = await response.json();
-                if (data.is_admin) document.getElementById('admin-btn').style.display = 'inline-block';
-            } catch (error) { console.error(error); }
+                if (data.is_admin) {
+                    document.getElementById('admin-btn').style.display = 'inline-block';
+                }
+            } catch (error) {
+                console.error('Check admin error:', error);
+            }
         }
         
+        // ============================================
+        // ИНИЦИАЛИЗАЦИЯ
+        // ============================================
         loadRooms();
         fetchOnlineCount();
         checkAdmin();
         setInterval(fetchOnlineCount, 5000);
         setInterval(loadRooms, 5000);
         
+        // Глобальные функции
         window.createRoom = createRoom;
         window.joinRoom = joinRoom;
         window.toggleTheme = toggleTheme;

@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Harmony Chat - Комната</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        :root {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #dddddd;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --gradient-start: #667eea;
+            --gradient-end: #764ba2;
+        }
+        [data-theme="dark"] {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --border-color: #404040;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .room-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        
+        .room-header {
+            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            padding: 20px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .room-header h2 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .room-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .control-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .control-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.02);
+        }
+        
+        .control-btn.active {
+            background: #4CAF50;
+        }
+        
+        .control-btn.muted {
+            background: #f44336;
+        }
+        
+        .exit-btn {
+            background: #f44336;
+        }
+        
+        .exit-btn:hover {
+            background: #d32f2f;
+        }
+        
+        .theme-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+        }
+        
+        .online-badge {
+            background: #4CAF50;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .online-badge::before {
+            content: "●";
+            animation: blink 1.5s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .main-content {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            min-height: 500px;
+        }
+        
+        .members-sidebar {
+            width: 280px;
+            background: var(--bg-primary);
+            border-radius: 15px;
+            padding: 15px;
+        }
+        
+        .members-sidebar h3 {
+            margin-bottom: 15px;
+            color: var(--text-primary);
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .members-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .member-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+        
+        .member-name {
+            font-weight: 500;
+        }
+        
+        .member-status {
+            font-size: 12px;
+        }
+        
+        .speaking {
+            animation: pulse 0.5s infinite;
+            color: #ffeb3b;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .messages {
+            flex: 1;
+            height: 400px;
+            overflow-y: auto;
+            background: var(--bg-primary);
+            border-radius: 15px;
+            padding: 15px;
+        }
+        
+        .message {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 10px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+        
+        .system-message {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 10px;
+            background: #e3f2fd;
+            color: #333;
+            font-style: italic;
+            font-size: 13px;
+        }
+        
+        [data-theme="dark"] .system-message {
+            background: #1a2a3a;
+            color: #e0e0e0;
+        }
+        
+        .message-input-area {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .message-input-area input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        
+        .message-input-area button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        
+        .voice-visualizer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            margin-left: 10px;
+        }
+        
+        .voice-bar {
+            width: 3px;
+            height: 20px;
+            background: #4CAF50;
+            transition: height 0.05s;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            .members-sidebar {
+                width: 100%;
+                order: -1;
+            }
+            .room-controls {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="room-container">
+        <div class="room-header">
+            <h2>
+                🎙️ <span id="room-name">Загрузка...</span>
+                <span class="online-badge" id="online-count">0</span>
+            </h2>
+            <div class="room-controls">
+                <button class="control-btn" id="test-mic-btn" onclick="testMicrophone()">
+                    🎤 Проверить микрофон
+                </button>
+                <button class="control-btn" id="mic-btn" onclick="toggleMicrophone()">
+                    🎤 Включить микрофон
+                </button>
+                <button class="control-btn" id="speakers-btn" onclick="toggleSpeakers()">
+                    🔊 Наушники
+                </button>
+                <button class="control-btn exit-btn" onclick="leaveRoom()">
+                    🚪 Покинуть комнату
+                </button>
+                <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="members-sidebar">
+                <h3>👥 Участники <span id="members-count">0</span></h3>
+                <div class="members-list" id="members-list">
+                    <div class="member-item">Загрузка...</div>
+                </div>
+            </div>
+            
+            <div class="chat-area">
+                <div class="messages" id="messages">
+                    <div class="system-message">🔔 Добро пожаловать в комнату!</div>
+                </div>
+                <div class="message-input-area">
+                    <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500">
+                    <button onclick="sendMessage()">📨 Отправить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ============================================
+        // ПЕРЕМЕННЫЕ
+        // ============================================
+        let ws = null;
+        let roomId = null;
+        let roomName = null;
+        let userStaticId = localStorage.getItem('userStaticId');
+        let mediaStream = null;
+        let audioContext = null;
+        let isMuted = true;
+        let speakersEnabled = true;
+        
+        // DOM элементы
+        const roomNameSpan = document.getElementById('room-name');
+        const onlineCountSpan = document.getElementById('online-count');
+        const membersCountSpan = document.getElementById('members-count');
+        const membersListDiv = document.getElementById('members-list');
+        const messagesDiv = document.getElementById('messages');
+        const micBtn = document.getElementById('mic-btn');
+        const speakersBtn = document.getElementById('speakers-btn');
+        const messageInput = document.getElementById('message-input');
+        
+        // ============================================
+        // ТЕМНАЯ ТЕМА
+        // ============================================
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            const btn = document.getElementById('theme-btn');
+            if (btn) btn.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        }
+        
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            const btn = document.getElementById('theme-btn');
+            if (btn) btn.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        }
+        
+        loadTheme();
+        
+        // ============================================
+        // ПОЛУЧЕНИЕ ПАРАМЕТРОВ КОМНАТЫ ИЗ URL
+        // ============================================
+        const urlParams = new URLSearchParams(window.location.search);
+        roomId = urlParams.get('id');
+        roomName = urlParams.get('name');
+        
+        if (!roomId || !userStaticId) {
+            window.location.href = '/dashboard.html';
+        }
+        
+        roomNameSpan.textContent = roomName || 'Комната';
+        
+        // ============================================
+        // WEBSOCKET ПОДКЛЮЧЕНИЕ
+        // ============================================
+        function connectWebSocket() {
+            const wsUrl = `wss://${window.location.host}`;
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                ws.send(JSON.stringify({ type: 'auth', staticId: userStaticId }));
+                ws.send(JSON.stringify({ type: 'join_room', roomId: parseInt(roomId) }));
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (e) {
+                    console.error('Parse error:', e);
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+        
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'members_list':
+                    updateMembersList(data.members);
+                    break;
+                case 'user_joined':
+                    addSystemMessage(`👋 ${data.userId} присоединился`);
+                    updateOnlineCount();
+                    break;
+                case 'user_left':
+                    addSystemMessage(`👋 ${data.userId} покинул`);
+                    updateOnlineCount();
+                    break;
+                case 'voice_data':
+                    if (speakersEnabled) {
+                        playAudio(data.audio);
+                    }
+                    break;
+                case 'text_message':
+                    addMessage(`👤 ${data.from}: ${data.message}`);
+                    break;
+                case 'online_count':
+                    updateOnlineCountDisplay(data.count);
+                    break;
+                case 'speaking':
+                    showSpeakingIndicator(data.userId);
+                    break;
+                default:
+                    console.log('Unknown message:', data.type);
+            }
+        }
+        
+        // ============================================
+        // УЧАСТНИКИ
+        // ============================================
+        function updateMembersList(members) {
+            if (!membersListDiv) return;
+            
+            if (!members || members.length === 0) {
+                membersListDiv.innerHTML = '<div class="member-item">Нет участников</div>';
+                membersCountSpan.textContent = '0';
+                return;
+            }
+            
+            membersListDiv.innerHTML = members.map(member => `
+                <div class="member-item">
+                    <span class="member-name">${escapeHtml(member)} ${member === userStaticId ? '(Вы)' : ''}</span>
+                    <span class="member-status" id="status-${escapeHtml(member)}">${member === userStaticId ? '🎤' : '🟢'}</span>
+                </div>
+            `).join('');
+            
+            membersCountSpan.textContent = members.length;
+        }
+        
+        function showSpeakingIndicator(userId) {
+            const statusSpan = document.getElementById(`status-${userId}`);
+            if (statusSpan) {
+                statusSpan.innerHTML = '🔊';
+                statusSpan.classList.add('speaking');
+                setTimeout(() => {
+                    if (statusSpan) {
+                        statusSpan.innerHTML = '🟢';
+                        statusSpan.classList.remove('speaking');
+                    }
+                }, 500);
+            }
+        }
+        
+        async function updateOnlineCount() {
+            try {
+                const response = await fetch('/api/online');
+                const data = await response.json();
+                updateOnlineCountDisplay(data.count);
+            } catch (error) {
+                console.error('Online count error:', error);
+            }
+        }
+        
+        function updateOnlineCountDisplay(count) {
+            if (onlineCountSpan) {
+                onlineCountSpan.textContent = count;
+            }
+        }
+        
+        // ============================================
+        // МИКРОФОН И АУДИО
+        // ============================================
+        async function startMicrophone() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaStream = stream;
+                
+                audioContext = new AudioContext();
+                const source = audioContext.createMediaStreamSource(stream);
+                const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                
+                let lastSend = 0;
+                
+                processor.onaudioprocess = (e) => {
+                    if (isMuted || !ws || ws.readyState !== WebSocket.OPEN) return;
+                    
+                    const now = Date.now();
+                    if (now - lastSend < 50) return;
+                    lastSend = now;
+                    
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    let volume = 0;
+                    for (let i = 0; i < inputData.length; i++) volume += Math.abs(inputData[i]);
+                    volume /= inputData.length;
+                    
+                    if (volume > 0.01) {
+                        ws.send(JSON.stringify({
+                            type: 'voice_data',
+                            audio: Array.from(inputData)
+                        }));
+                        
+                        // Визуализация звука
+                        showVoiceVisualizer(volume);
+                    }
+                };
+                
+                addSystemMessage('🎙️ Микрофон включен');
+                isMuted = false;
+                micBtn.textContent = '🔇 Выключить микрофон';
+                micBtn.classList.remove('active');
+                micBtn.classList.add('muted');
+                
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+            } catch (error) {
+                console.error('Microphone error:', error);
+                addSystemMessage('❌ Нет доступа к микрофону. Разрешите доступ в браузере.');
+            }
+        }
+        
+        function stopMicrophone() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            addSystemMessage('🔇 Микрофон выключен');
+            isMuted = true;
+            micBtn.textContent = '🎤 Включить микрофон';
+            micBtn.classList.remove('muted');
+            micBtn.classList.add('active');
+        }
+        
+        function toggleMicrophone() {
+            if (!mediaStream || isMuted) {
+                startMicrophone();
+            } else {
+                stopMicrophone();
+            }
+        }
+        
+        function toggleSpeakers() {
+            speakersEnabled = !speakersEnabled;
+            speakersBtn.textContent = speakersEnabled ? '🔊 Наушники' : '🔇 Наушники выкл';
+            speakersBtn.classList.toggle('muted');
+            addSystemMessage(speakersEnabled ? '🔊 Звук включен' : '🔇 Звук выключен');
+        }
+        
+        function playAudio(audioArray) {
+            if (!audioContext || audioContext.state === 'closed') {
+                audioContext = new AudioContext();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            try {
+                const buffer = audioContext.createBuffer(1, audioArray.length, audioContext.sampleRate);
+                buffer.copyToChannel(new Float32Array(audioArray), 0);
+                const source = audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioContext.destination);
+                source.start();
+            } catch (error) {
+                console.error('Play audio error:', error);
+            }
+        }
+        
+        function showVoiceVisualizer(volume) {
+            const bars = document.querySelectorAll('.voice-bar');
+            const height = Math.min(volume * 200, 30);
+        }
+        
+        function testMicrophone() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(() => {
+                    addSystemMessage('✅ Микрофон работает!');
+                })
+                .catch(() => {
+                    addSystemMessage('❌ Микрофон не работает или доступ запрещен');
+                });
+        }
+        
+        // ============================================
+        // ТЕКСТОВЫЙ ЧАТ
+        // ============================================
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'text_message', message: message }));
+                addMessage(`👤 Вы: ${message}`);
+                messageInput.value = '';
+            }
+        }
+        
+        function addMessage(text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message';
+            msgDiv.textContent = text;
+            messagesDiv.appendChild(msgDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function addSystemMessage(text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'system-message';
+            msgDiv.innerHTML = `🔔 ${escapeHtml(text)}`;
+            messagesDiv.appendChild(msgDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // ============================================
+        // ВЫХОД ИЗ КОМНАТЫ
+        // ============================================
+        async function leaveRoom() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'leave_room' }));
+                ws.close();
+            }
+            
+            if (mediaStream) {
+                stopMicrophone();
+            }
+            
+            window.location.href = '/dashboard.html';
+        }
+        
+        // Обработка Enter в поле ввода
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        
+        // ============================================
+        // ИНИЦИАЛИЗАЦИЯ
+        // ============================================
+        connectWebSocket();
+        updateOnlineCount();
+        setInterval(updateOnlineCount, 5000);
+        startMicrophone(); // Автоматически запрашиваем микрофон
+    </script>
+</body>
+</html>

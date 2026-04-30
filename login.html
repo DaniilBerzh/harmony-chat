@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - Harmony Chat</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .auth-box {
+            max-width: 400px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+        }
+        .form-container h3 {
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            text-align: center;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: var(--gradient-start);
+            text-decoration: none;
+        }
+        .error {
+            background: #f44336;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .success {
+            background: #4CAF50;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🎤 Harmony Chat</h1>
+            <p>Анонимное голосовое общение</p>
+        </div>
+        
+        <div class="auth-box">
+            <div class="form-container">
+                <h3>🔐 Войти в чат</h3>
+                <input type="text" id="login-static" placeholder="Static ID (например: #123456)">
+                <input type="password" id="login-password" placeholder="Пароль">
+                <button onclick="login()">Войти</button>
+                <div id="login-message"></div>
+                <a href="/" class="back-link">← Нет аккаунта? Зарегистрироваться</a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        async function login() {
+            const staticId = document.getElementById('login-static').value.trim();
+            const password = document.getElementById('login-password').value;
+            const messageDiv = document.getElementById('login-message');
+            
+            if (!staticId || !password) {
+                messageDiv.innerHTML = '<div class="error">Введите Static ID и пароль</div>';
+                return;
+            }
+            
+            messageDiv.innerHTML = '<div class="success">Проверка...</div>';
+            
+            try {
+                const response = await fetch('/login.html', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        static_id: staticId, 
+                        password: password 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Сохраняем Static ID в localStorage
+                    localStorage.setItem('userStaticId', staticId);
+                    messageDiv.innerHTML = '<div class="success">✅ Вход выполнен! Перенаправление...</div>';
+                    // Перенаправляем на дашборд
+                    setTimeout(() => {
+                        window.location.href = '/dashboard.html';
+                    }, 1000);
+                } else {
+                    messageDiv.innerHTML = '<div class="error">❌ ' + data.error + '</div>';
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                messageDiv.innerHTML = '<div class="error">❌ Ошибка соединения с сервером</div>';
+            }
+        }
+        
+        // Enter key handler
+        document.getElementById('login-password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+        document.getElementById('login-static').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+    </script>
+</body>
+</html>

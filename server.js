@@ -65,6 +65,7 @@ async function initDatabase() {
     try {
         const conn = await db.promise().getConnection();
         
+        // Таблица пользователей
         await conn.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -80,6 +81,7 @@ async function initDatabase() {
             )
         `);
         
+        // Таблица комнат
         await conn.query(`
             CREATE TABLE IF NOT EXISTS rooms (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -91,6 +93,7 @@ async function initDatabase() {
             )
         `);
         
+        // Таблица участников комнат
         await conn.query(`
             CREATE TABLE IF NOT EXISTS room_members (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -101,6 +104,7 @@ async function initDatabase() {
             )
         `);
         
+        // Таблица логов
         await conn.query(`
             CREATE TABLE IF NOT EXISTS logs (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -109,6 +113,31 @@ async function initDatabase() {
                 target_static_id VARCHAR(10),
                 details TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Таблица банов
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS ban_list (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_static_id VARCHAR(10),
+                banned_by VARCHAR(10),
+                reason TEXT,
+                ban_date DATETIME,
+                unban_date DATETIME
+            )
+        `);
+        
+        // Таблица репортов
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS reports (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                reporter_static_id VARCHAR(10),
+                reported_static_id VARCHAR(10),
+                reason TEXT,
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at DATETIME
             )
         `);
         
@@ -191,6 +220,11 @@ app.post('/api/register', async (req, res) => {
             [static_id, age, password_hash]
         );
         
+        await db.promise().query(
+            "INSERT INTO logs (action, user_static_id, details) VALUES (?, ?, ?)",
+            ['register', static_id, 'Новая регистрация']
+        );
+        
         console.log(`✅ Зарегистрирован: ${static_id}`);
         res.json({ success: true, static_id: static_id });
         
@@ -233,6 +267,11 @@ app.post('/api/login', async (req, res) => {
             is_admin: user.is_admin === 1
         });
         
+        await db.promise().query(
+            "INSERT INTO logs (action, user_static_id, details) VALUES (?, ?, ?)",
+            ['login', static_id, 'Вход в систему']
+        );
+        
         console.log(`✅ Авторизован: ${static_id}`);
         res.json({ success: true });
         
@@ -267,11 +306,12 @@ app.get('/api/online', async (req, res) => {
         );
         res.json({ count: rows[0].count });
     } catch (error) {
+        console.error('Online count error:', error);
         res.json({ count: 0 });
     }
 });
 
-// Создать комнату (БЕЗ created_by)
+// Создать комнату
 app.post('/api/rooms', async (req, res) => {
     console.log('📝 Создание комнаты:', req.body);
     
@@ -410,6 +450,283 @@ app.get('/api/rooms/:id/members', async (req, res) => {
         res.json({ members: rows.map(r => r.user_static_id) });
     } catch (error) {
         res.json({ members: [] });
+    }
+});
+
+// ============================================
+// АДМИНИСТРАТИВНЫЕ API
+// ============================================
+
+// Получить логи
+app.get('/api/admin/logs', async (req, res) => {
+    try {
+        const [rows] = await db.promise().query("SELECT * FROM logs ORDER BY created_at DESC LIMIT 200");
+        res.json(rows);
+    } catch (error) {
+        console.error('Get logs error:', error);
+        res.json([]);
+    }
+});
+
+// Получить всех пользователей
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const [rows] = await db.promise().query(`
+            SELECT u.*, 
+            (SELECT COUNT(*) FROM room_members WHERE user_static_id = u.static_id) > 0 as is_online 
+            FROM users u ORDER BY u.created_at DESC
+        `);
+        res.json(rows);
+    } catch (error) {
+        console.error('Get users error:', error);
+        res.json([]);
+    }
+});
+
+// Получить бан-лист
+app.get('/api/admin/bans', async (req, res) => {
+    try {
+        const [rows] = await db.promise().query("SELECT * FROM ban_list ORDER BY ban_date DESC");
+        res.json(rows);
+    } catch (error) {
+        console.error('Get bans error:', error);
+        res.json([]);
+    }
+});
+
+// Получить репорты
+app.get('/api/admin/reports', async (req, res) => {
+    try {
+        const [rows] = await db.promise().query("SELECT * FROM reports ORDER BY created_at DESC");
+        res.json(rows);
+    } catch (error) {
+        console.error('Get reports error:', error);
+        res.json([]);
+    }
+});
+
+// Получить список администраторов
+app.get('/api/admin/admins', async (req, res) => {
+    try {
+        const [rows] = await db.promise().query("SELECT static_id, age, created_at FROM users WHERE is_admin = 1");
+        res.json(rows);
+    } catch (error) {
+        console.error('Get admins error:', error);
+        res.json([]);
+    }
+});
+
+// Назначить администратором
+app.post('/api/admin/makeadmin', async (req, res) => {
+    const { static_id } = req.body;
+    console.log(`📝 Назначение администратором: ${static_id}`);
+    
+    try {
+        await db.promise().query("UPDATE users SET is_admin = 1 WHERE static_id = ?", [static_id]);
+        await db.promise().query(
+            "INSERT INTO logs (action, user_static_id, target_static_id, details) VALUES (?, ?, ?, ?)",
+            ['make_admin', 'system', static_id, 'Назначен администратором']
+        );
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Make admin error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Снять права администратора
+app.post('/api/admin/removeadmin', async (req, res) => {
+    const { static_id } = req.body;
+    console.log(`📝 Снятие прав администратора: ${static_id}`);
+    
+    try {
+        await db.promise().query("UPDATE users SET is_admin = 0 WHERE static_id = ?", [static_id]);
+        await db.promise().query(
+            "INSERT INTO logs (action, user_static_id, target_static_id, details) VALUES (?, ?, ?, ?)",
+            ['remove_admin', 'system', static_id, 'Сняты права администратора']
+        );
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Remove admin error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Забанить пользователя
+app.post('/api/admin/ban', async (req, res) => {
+    const { static_id, days, reason } = req.body;
+    console.log(`📝 Бан пользователя: ${static_id} на ${days} дней. Причина: ${reason}`);
+    
+    try {
+        const unbanDate = new Date();
+        unbanDate.setDate(unbanDate.getDate() + days);
+        
+        await db.promise().query(
+            "UPDATE users SET is_banned = 1, ban_reason = ?, unban_date = ? WHERE static_id = ?",
+            [reason, unbanDate, static_id]
+        );
+        
+        await db.promise().query(
+            "INSERT INTO ban_list (user_static_id, banned_by, reason, ban_date, unban_date) VALUES (?, ?, ?, NOW(), ?)",
+            [static_id, 'admin', reason, unbanDate]
+        );
+        
+        await db.promise().query(
+            "INSERT INTO logs (action, user_static_id, target_static_id, details) VALUES (?, ?, ?, ?)",
+            ['ban', 'admin', static_id, `Забанен на ${days} дней. Причина: ${reason}`]
+        );
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Ban error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Разбанить пользователя
+app.post('/api/admin/unban', async (req, res) => {
+    const { static_id } = req.body;
+    console.log(`📝 Разбан пользователя: ${static_id}`);
+    
+    try {
+        await db.promise().query(
+            "UPDATE users SET is_banned = 0, ban_reason = NULL, unban_date = NULL WHERE static_id = ?",
+            [static_id]
+        );
+        
+        await db.promise().query(
+            "INSERT INTO logs (action, user_static_id, target_static_id, details) VALUES (?, ?, ?, ?)",
+            ['unban', 'admin', static_id, 'Разбанен']
+        );
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Unban error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Принять репорт
+app.post('/api/admin/acceptreport', async (req, res) => {
+    const { report_id } = req.body;
+    console.log(`📝 Принят репорт #${report_id}`);
+    
+    try {
+        await db.promise().query(
+            "UPDATE reports SET status = 'accepted', resolved_at = NOW() WHERE id = ?",
+            [report_id]
+        );
+        
+        await db.promise().query(
+            "INSERT INTO logs (action, details) VALUES (?, ?)",
+            ['accept_report', `Принят репорт #${report_id}`]
+        );
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Accept report error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Отклонить репорт
+app.post('/api/admin/cancelreport', async (req, res) => {
+    const { report_id, reason } = req.body;
+    console.log(`📝 Отклонен репорт #${report_id}. Причина: ${reason}`);
+    
+    try {
+        await db.promise().query(
+            "UPDATE reports SET status = 'cancelled', resolved_at = NOW() WHERE id = ?",
+            [report_id]
+        );
+        
+        await db.promise().query(
+            "INSERT INTO logs (action, details) VALUES (?, ?)",
+            ['cancel_report', `Отклонен репорт #${report_id}. Причина: ${reason}`]
+        );
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Cancel report error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Выполнение команд консоли
+app.post('/api/admin/command', async (req, res) => {
+    const { command } = req.body;
+    console.log(`📝 Консольная команда: ${command}`);
+    
+    try {
+        const parts = command.split(' ');
+        const cmd = parts[0].toLowerCase();
+        
+        if (cmd === '/ban' && parts.length >= 4) {
+            const target = parts[1];
+            const days = parseInt(parts[2]);
+            const reason = parts.slice(3).join(' ');
+            const unbanDate = new Date();
+            unbanDate.setDate(unbanDate.getDate() + days);
+            
+            await db.promise().query(
+                "UPDATE users SET is_banned = 1, ban_reason = ?, unban_date = ? WHERE static_id = ?",
+                [reason, unbanDate, target]
+            );
+            
+            await db.promise().query(
+                "INSERT INTO ban_list (user_static_id, banned_by, reason, ban_date, unban_date) VALUES (?, ?, ?, NOW(), ?)",
+                [target, 'console', reason, unbanDate]
+            );
+            
+            res.json({ success: true, message: `Пользователь ${target} забанен на ${days} дней` });
+        }
+        else if (cmd === '/unban' && parts.length >= 2) {
+            const target = parts[1];
+            
+            await db.promise().query(
+                "UPDATE users SET is_banned = 0, ban_reason = NULL, unban_date = NULL WHERE static_id = ?",
+                [target]
+            );
+            
+            res.json({ success: true, message: `Пользователь ${target} разбанен` });
+        }
+        else if (cmd === '/makeadmin' && parts.length >= 2) {
+            const target = parts[1];
+            
+            await db.promise().query(
+                "UPDATE users SET is_admin = 1 WHERE static_id = ?",
+                [target]
+            );
+            
+            res.json({ success: true, message: `Пользователь ${target} назначен администратором` });
+        }
+        else if (cmd === '/removeadmin' && parts.length >= 2) {
+            const target = parts[1];
+            
+            await db.promise().query(
+                "UPDATE users SET is_admin = 0 WHERE static_id = ?",
+                [target]
+            );
+            
+            res.json({ success: true, message: `Права администратора сняты с ${target}` });
+        }
+        else if (cmd === '/roomdelete' && parts.length >= 2) {
+            const roomId = parseInt(parts[1]);
+            
+            await db.promise().query("DELETE FROM room_members WHERE room_id = ?", [roomId]);
+            await db.promise().query("DELETE FROM rooms WHERE id = ?", [roomId]);
+            
+            res.json({ success: true, message: `Комната ${roomId} удалена` });
+        }
+        else if (cmd === '/help') {
+            res.json({ success: true, message: 'Доступные команды: /ban, /unban, /makeadmin, /removeadmin, /roomdelete, /help' });
+        }
+        else {
+            res.json({ success: false, error: 'Неизвестная команда. Введите /help для списка команд' });
+        }
+    } catch (error) {
+        console.error('Command error:', error);
+        res.json({ success: false, error: error.message });
     }
 });
 

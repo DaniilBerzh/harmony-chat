@@ -43,15 +43,16 @@ const db = mysql.createPool(dbConfig);
 const userSessions = new Map();
 const clients = new Map();
 
-// Функция для отправки PHP файлов как HTML
-function sendPhpAsHtml(res, filename) {
+// Функция для отправки HTML файлов
+function sendHtml(res, filename) {
     const filePath = path.join(__dirname, filename);
     fs.readFile(filePath, 'utf8', (err, data) => {
         if (err) {
             res.status(500).send('Error loading page');
             return;
         }
-        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Content-Disposition', 'inline');
         res.send(data);
     });
 }
@@ -130,11 +131,11 @@ db.getConnection((err, connection) => {
 });
 
 // ============================================
-// API МАРШРУТЫ
+// API МАРШРУТЫ (прямые, без .html)
 // ============================================
 
 // Регистрация
-app.post('/register.php', async (req, res) => {
+app.post('/api/register', async (req, res) => {
     console.log('📝 Регистрация:', req.body);
     
     try {
@@ -174,7 +175,7 @@ app.post('/register.php', async (req, res) => {
 });
 
 // Авторизация
-app.post('/login.php', async (req, res) => {
+app.post('/api/login', async (req, res) => {
     console.log('📝 Авторизация:', req.body);
     
     try {
@@ -207,7 +208,7 @@ app.post('/login.php', async (req, res) => {
         });
         
         console.log(`✅ Авторизован: ${static_id}`);
-        res.json({ success: true, redirect: '/dashboard.php' });
+        res.json({ success: true });
         
     } catch (error) {
         console.error('Login error:', error);
@@ -215,96 +216,196 @@ app.post('/login.php', async (req, res) => {
     }
 });
 
-// API для комнат
-app.post('/api.php', async (req, res) => {
-    console.log('📝 API POST:', req.body);
-    
+// Получить список комнат
+app.get('/api/rooms', async (req, res) => {
     try {
-        const { action, name, max, type, room_id } = req.body;
-        
-        if (action === 'createRoom') {
-            const [result] = await db.promise().query(
-                "INSERT INTO rooms (name, max_people, type, created_by) VALUES (?, ?, ?, ?)",
-                [name, max || 10, type || 'voice', 'system']
-            );
-            res.json({ success: true, room_id: result.insertId, room_name: name });
-            
-        } else if (action === 'joinRoom') {
-            const [room] = await db.promise().query(
-                "SELECT * FROM rooms WHERE id = ?",
-                [room_id]
-            );
-            if (room.length === 0) {
-                res.json({ success: false, error: 'Комната не найдена' });
-            } else {
-                res.json({ success: true, room_name: room[0].name });
-            }
-            
-        } else if (action === 'leaveRoom') {
-            res.json({ success: true });
-            
-        } else {
-            res.json({ success: false, error: 'Неизвестное действие' });
-        }
-        
+        const [rows] = await db.promise().query(`
+            SELECT r.*, 
+            (SELECT COUNT(*) FROM room_members WHERE room_id = r.id) as current_members 
+            FROM rooms r 
+            WHERE r.is_active = 1 
+            ORDER BY r.created_at DESC
+        `);
+        res.json(rows);
     } catch (error) {
-        console.error('API error:', error);
-        res.json({ success: false, error: error.message });
-    }
-});
-
-app.get('/api.php', async (req, res) => {
-    const { action } = req.query;
-    console.log('📝 API GET:', action);
-    
-    try {
-        if (action === 'getRooms') {
-            const [rows] = await db.promise().query(`
-                SELECT r.*, 
-                (SELECT COUNT(*) FROM room_members WHERE room_id = r.id) as current_members 
-                FROM rooms r 
-                WHERE r.is_active = 1 
-                ORDER BY r.created_at DESC
-            `);
-            res.json(rows);
-            
-        } else if (action === 'getRoomMembers') {
-            const room_id = req.query.room_id;
-            const [rows] = await db.promise().query(
-                "SELECT user_static_id FROM room_members WHERE room_id = ?",
-                [room_id]
-            );
-            res.json({ members: rows.map(r => r.user_static_id) });
-            
-        } else if (action === 'getOnlineCount') {
-            const [rows] = await db.promise().query(
-                "SELECT COUNT(DISTINCT user_static_id) as count FROM room_members"
-            );
-            res.json({ count: rows[0].count });
-            
-        } else {
-            res.json([]);
-        }
-        
-    } catch (error) {
-        console.error('API GET error:', error);
+        console.error('Get rooms error:', error);
         res.json([]);
     }
 });
 
+// Получить участников комнаты
+app.get('/api/rooms/:id/members', async (req, res) => {
+    try {
+        const roomId = req.params.id;
+        const [rows] = await db.promise().query(
+            "SELECT user_static_id FROM room_members WHERE room_id = ?",
+            [roomId]
+        );
+        res.json({ members: rows.map(r => r.user_static_id) });
+    } catch (error) {
+        console.error('Get members error:', error);
+        res.json({ members: [] });
+    }
+});
+
+// Получить онлайн счетчик
+app.get('/api/online', async (req, res) => {
+    try {
+        const [rows] = await db.promise().query(
+            "SELECT COUNT(DISTINCT user_static_id) as count FROM room_members"
+        );
+        res.json({ count: rows[0].count });
+    } catch (error) {
+        console.error('Online count error:', error);
+        res.json({ count: 0 });
+    }
+});
+
+// Создать комнату
+app.post('/api/rooms', async (req, res) => {
+    console.log('📝 Создание комнаты:', req.body);
+    
+    try {
+        const { name, max_people, type, created_by } = req.body;
+        
+        if (!name) {
+            return res.json({ success: false, error: 'Название комнаты обязательно' });
+        }
+        
+        const [result] = await db.promise().query(
+            "INSERT INTO rooms (name, max_people, type, created_by) VALUES (?, ?, ?, ?)",
+            [name, max_people || 10, type || 'voice', created_by || 'system']
+        );
+        
+        res.json({ success: true, room_id: result.insertId, room_name: name });
+    } catch (error) {
+        console.error('Create room error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Войти в комнату
+app.post('/api/rooms/:id/join', async (req, res) => {
+    console.log('📝 Вход в комнату:', req.params.id, req.body);
+    
+    try {
+        const roomId = req.params.id;
+        const { user_static_id } = req.body;
+        
+        const [room] = await db.promise().query(
+            "SELECT * FROM rooms WHERE id = ? AND is_active = 1",
+            [roomId]
+        );
+        
+        if (room.length === 0) {
+            return res.json({ success: false, error: 'Комната не найдена' });
+        }
+        
+        // Проверяем количество участников
+        const [count] = await db.promise().query(
+            "SELECT COUNT(*) as cnt FROM room_members WHERE room_id = ?",
+            [roomId]
+        );
+        
+        if (count[0].cnt >= room[0].max_people) {
+            return res.json({ success: false, error: 'Комната заполнена' });
+        }
+        
+        await db.promise().query(
+            "INSERT IGNORE INTO room_members (room_id, user_static_id) VALUES (?, ?)",
+            [roomId, user_static_id]
+        );
+        
+        res.json({ success: true, room_name: room[0].name });
+    } catch (error) {
+        console.error('Join room error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Выйти из комнаты
+app.post('/api/rooms/:id/leave', async (req, res) => {
+    console.log('📝 Выход из комнаты:', req.params.id, req.body);
+    
+    try {
+        const roomId = req.params.id;
+        const { user_static_id } = req.body;
+        
+        await db.promise().query(
+            "DELETE FROM room_members WHERE room_id = ? AND user_static_id = ?",
+            [roomId, user_static_id]
+        );
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Leave room error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Удалить комнату
+app.delete('/api/rooms/:id', async (req, res) => {
+    console.log('📝 Удаление комнаты:', req.params.id);
+    
+    try {
+        const roomId = req.params.id;
+        
+        // Удаляем всех участников
+        await db.promise().query("DELETE FROM room_members WHERE room_id = ?", [roomId]);
+        // Удаляем комнату
+        await db.promise().query("DELETE FROM rooms WHERE id = ?", [roomId]);
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete room error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Проверка админа
+app.get('/api/checkAdmin', async (req, res) => {
+    const { static_id } = req.query;
+    
+    try {
+        const [rows] = await db.promise().query(
+            "SELECT is_admin FROM users WHERE static_id = ?",
+            [static_id]
+        );
+        res.json({ is_admin: rows.length > 0 ? rows[0].is_admin === 1 : false });
+    } catch (error) {
+        res.json({ is_admin: false });
+    }
+});
+
 // ============================================
-// СТАТИЧЕСКИЕ ФАЙЛЫ (PHP как HTML)
+// СТАТИЧЕСКИЕ ФАЙЛЫ (HTML)
 // ============================================
 app.get('/', (req, res) => {
-    sendPhpAsHtml(res, 'index.html');
+    sendHtml(res, 'index.html');
 });
 
-app.get('/dashboard.php', (req, res) => {
-    sendPhpAsHtml(res, 'dashboard.php');
+app.get('/index.html', (req, res) => {
+    sendHtml(res, 'index.html');
 });
 
-app.get('/admin.php', (req, res) => {
-    sendPhpAsHtml(res, 'admin.php');
+app.get('/dashboard.html', (req, res) => {
+    sendHtml(res, 'dashboard.html');
+});
+
+app.get('/admin.html', (req, res) => {
+    sendHtml(res, 'admin.html');
+});
+
+app.get('/login.html', (req, res) => {
+    sendHtml(res, 'login.html');
+});
+
+app.get('/register.html', (req, res) => {
+    sendHtml(res, 'register.html');
+});
+
+app.get('/logout.html', (req, res) => {
+    sendHtml(res, 'logout.html');
 });
 
 app.get('/style.css', (req, res) => {
@@ -313,14 +414,6 @@ app.get('/style.css', (req, res) => {
 
 app.get('/script.js', (req, res) => {
     res.sendFile(path.join(__dirname, 'script.js'));
-});
-
-app.get('/logout.php', (req, res) => {
-    sendPhpAsHtml(res, 'logout.php');
-});
-
-app.get('*', (req, res) => {
-    sendPhpAsHtml(res, 'index.html');
 });
 
 // ============================================
@@ -382,7 +475,7 @@ wss.on('connection', (ws) => {
 });
 
 // ============================================
-// ЗАПУСК
+// ЗАПУСК СЕРВЕРА
 // ============================================
 server.listen(port, '0.0.0.0', () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

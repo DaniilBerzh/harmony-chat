@@ -1,12 +1,3 @@
-<?php
-require_once 'config.php';
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.html');
-    exit;
-}
-$userStatic = $_SESSION['static_id'];
-$isAdmin = $_SESSION['is_admin'];
-?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -63,17 +54,15 @@ $isAdmin = $_SESSION['is_admin'];
     </style>
 </head>
 <body>
-    <div id="user-data" data-static-id="<?= $userStatic ?>" style="display:none"></div>
+    <div id="user-data" data-static-id="" style="display:none"></div>
     
     <div class="dashboard">
         <div class="header">
             <h2>🎙️ Harmony Chat</h2>
             <div class="online-counter">👥 Онлайн: <span id="global-online">0</span></div>
             <div class="header-buttons">
-                <?php if($isAdmin): ?>
-                    <a href="admin.php" class="admin-btn">🔧 Админ-панель</a>
-                <?php endif; ?>
-                <a href="logout.php" class="logout">🚪 Выйти</a>
+                <a href="admin.html" class="admin-btn" style="display:none">🔧 Админ-панель</a>
+                <a href="logout.html" class="logout">🚪 Выйти</a>
             </div>
         </div>
         
@@ -117,6 +106,26 @@ $isAdmin = $_SESSION['is_admin'];
         </div>
     </div>
     
+    <script>
+        // Получаем Static ID из URL или localStorage
+        let userStaticId = localStorage.getItem('userStaticId');
+        
+        if (!userStaticId) {
+            // Если нет ID - перенаправляем на главную
+            window.location.href = '/';
+        }
+        
+        document.getElementById('user-data').dataset.staticId = userStaticId;
+        
+        // Проверяем, админ ли пользователь
+        fetch('/api.html?action=checkAdmin&static_id=' + userStaticId)
+            .then(res => res.json())
+            .then(data => {
+                if (data.is_admin) {
+                    document.querySelector('.admin-btn').style.display = 'inline-block';
+                }
+            });
+    </script>
     <script src="script.js"></script>
 </body>
 </html>

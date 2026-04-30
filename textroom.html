@@ -41,6 +41,9 @@
             border-radius: 20px;
             box-shadow: var(--shadow);
             overflow: hidden;
+            height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
         }
         
         .room-header {
@@ -52,6 +55,7 @@
             align-items: center;
             flex-wrap: wrap;
             gap: 10px;
+            flex-shrink: 0;
         }
         
         .room-header h2 {
@@ -121,7 +125,9 @@
             display: flex;
             gap: 15px;
             padding: 15px;
-            min-height: 500px;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
         }
         
         .members-sidebar {
@@ -129,6 +135,10 @@
             background: var(--bg-primary);
             border-radius: 12px;
             padding: 12px;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            overflow: hidden;
         }
         
         .members-sidebar h3 {
@@ -136,12 +146,14 @@
             font-size: 14px;
             display: flex;
             justify-content: space-between;
+            flex-shrink: 0;
         }
         
         .members-list {
-            max-height: 400px;
+            flex: 1;
             overflow-y: auto;
             font-size: 13px;
+            min-height: 0;
         }
         
         .member-item {
@@ -158,16 +170,18 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
+            min-height: 0;
+            overflow: hidden;
         }
         
         .messages {
             flex: 1;
-            height: 400px;
             overflow-y: auto;
             background: var(--bg-primary);
             border-radius: 12px;
             padding: 12px;
             font-size: 13px;
+            min-height: 0;
         }
         
         .message {
@@ -201,6 +215,7 @@
             gap: 10px;
             padding: 10px 0;
             width: 100%;
+            flex-shrink: 0;
         }
         
         .message-input-area input {
@@ -237,11 +252,41 @@
         }
         
         @media (max-width: 768px) {
-            .main-content { flex-direction: column; }
-            .members-sidebar { width: 100%; order: -1; }
-            .room-controls { justify-content: center; }
-            .message-input-area input { padding: 12px 16px; font-size: 14px; }
-            .message-input-area button { padding: 12px 20px; font-size: 14px; }
+            .main-content {
+                flex-direction: column;
+            }
+            .members-sidebar {
+                width: 100%;
+                max-height: 150px;
+            }
+            .room-controls {
+                justify-content: center;
+            }
+            .message-input-area input {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+            .message-input-area button {
+                padding: 12px 20px;
+                font-size: 14px;
+            }
+            .room-container {
+                height: auto;
+                min-height: calc(100vh - 40px);
+            }
+        }
+        
+        /* Кастомный скроллбар */
+        .messages::-webkit-scrollbar, .members-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .messages::-webkit-scrollbar-track, .members-list::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+            border-radius: 10px;
+        }
+        .messages::-webkit-scrollbar-thumb, .members-list::-webkit-scrollbar-thumb {
+            background: var(--gradient-start);
+            border-radius: 10px;
         }
     </style>
 </head>
@@ -360,12 +405,14 @@
                 document.getElementById('members-count').textContent = '0';
                 return;
             }
-            container.innerHTML = members.map(m => `
+            // Убираем дубликаты
+            const uniqueMembers = [...new Set(members)];
+            container.innerHTML = uniqueMembers.map(m => `
                 <div class="member-item">
                     <span>${escapeHtml(m)} ${m === userStaticId ? '(Вы)' : ''}</span>
                 </div>
             `).join('');
-            document.getElementById('members-count').textContent = members.length;
+            document.getElementById('members-count').textContent = uniqueMembers.length;
         }
         
         async function fetchOnlineCount() {
@@ -387,6 +434,11 @@
                 addMessage(`👤 Вы`, msg, true);
                 messageInput.value = '';
                 messageInput.focus();
+                
+                // Автоскролл вниз
+                setTimeout(() => {
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                }, 50);
             }
         }
         
@@ -396,7 +448,11 @@
             div.innerHTML = `<strong>${escapeHtml(sender)}:</strong> ${escapeHtml(text)}`;
             messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            while (messagesDiv.children.length > 100) messagesDiv.removeChild(messagesDiv.firstChild);
+            
+            // Ограничиваем количество сообщений (оставляем последние 200)
+            while (messagesDiv.children.length > 200) {
+                messagesDiv.removeChild(messagesDiv.firstChild);
+            }
         }
         
         function addSystemMessage(text) {

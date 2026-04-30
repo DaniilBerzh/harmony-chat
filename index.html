@@ -186,7 +186,7 @@
             messageDiv.innerHTML = '<div class="success">📝 Регистрация...</div>';
             
             try {
-                const response = await fetch('/register.html', {
+                const response = await fetch('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ age: parseInt(age), password: password })
@@ -217,7 +217,7 @@
                 }
             } catch (error) {
                 console.error('Register error:', error);
-                messageDiv.innerHTML = '<div class="error">❌ Ошибка соединения с сервером</div>';
+                messageDiv.innerHTML = '<div class="error">❌ Ошибка соединения с сервером. Проверьте интернет.</div>';
             }
         }
         
@@ -237,7 +237,7 @@
             messageDiv.innerHTML = '<div class="success">🔐 Проверка...</div>';
             
             try {
-                const response = await fetch('/login.html', {
+                const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ static_id: staticId, password: password })

@@ -6,49 +6,298 @@
     <title>Harmony Chat - Голосовой чат</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .delete-room-btn {
-            background: #f44336;
-            padding: 4px 10px;
-            font-size: 12px;
-            margin-left: 10px;
-            width: auto;
+        /* Темная тема */
+        :root {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #dddddd;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --gradient-start: #667eea;
+            --gradient-end: #764ba2;
         }
-        .delete-room-btn:hover {
-            background: #d32f2f;
+        [data-theme="dark"] {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --border-color: #404040;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+            --gradient-start: #5a6fd6;
+            --gradient-end: #6a3d8e;
         }
-        .room-item {
-            position: relative;
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        .room-actions {
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .dashboard {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 25px;
+            width: 90%;
+            max-width: 1400px;
+            margin: 0 auto;
+            box-shadow: var(--shadow);
+            transition: all 0.3s;
+        }
+        
+        .header {
             display: flex;
-            gap: 5px;
+            justify-content: space-between;
             align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 15px;
         }
-        .test-mic-btn {
-            background: linear-gradient(135deg, #2196F3, #1976D2);
+        
+        .header h2 {
+            color: var(--text-primary);
         }
-        .test-mic-btn:hover {
-            background: linear-gradient(135deg, #1976D2, #1565C0);
+        
+        /* Онлайн счетчик - зеленый с анимацией */
+        .online-counter {
+            background: #4CAF50;
+            padding: 8px 18px;
+            border-radius: 30px;
+            color: white;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            animation: glow 2s infinite;
         }
-        .voice-controls {
+        
+        .online-counter::before {
+            content: "●";
+            animation: blink 1.5s infinite;
+            font-size: 14px;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 2px 5px rgba(76, 175, 80, 0.3); }
+            50% { box-shadow: 0 2px 15px rgba(76, 175, 80, 0.6); }
+        }
+        
+        /* Кнопка переключения темы */
+        .theme-btn {
+            background: var(--bg-primary);
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            font-size: 22px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .theme-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .header-buttons {
             display: flex;
             gap: 10px;
-            flex-wrap: wrap;
+            align-items: center;
         }
-        .voice-controls button {
+        
+        .logout, .admin-btn {
+            padding: 8px 18px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .admin-btn {
+            background: #ff9800;
+        }
+        
+        .logout {
+            background: #f44336;
+        }
+        
+        .main-panel {
+            display: flex;
+            gap: 20px;
+            min-height: 500px;
+        }
+        
+        .rooms-sidebar {
+            width: 320px;
+            background: var(--bg-primary);
+            padding: 20px;
+            border-radius: 15px;
+            overflow-y: auto;
+        }
+        
+        .chat-area {
             flex: 1;
-            min-width: 120px;
+            background: var(--bg-secondary);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
         }
-        @media (max-width: 600px) {
-            .voice-controls button {
-                min-width: calc(50% - 5px);
-            }
-            .room-actions {
+        
+        .create-room-form {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--border-color);
+        }
+        
+        .create-room-form h3, .rooms-list-container h3 {
+            margin-bottom: 15px;
+            color: var(--text-primary);
+        }
+        
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 16px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        
+        button {
+            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .room-item {
+            background: var(--bg-secondary);
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border-color);
+        }
+        
+        .room-item:hover {
+            transform: translateX(5px);
+            box-shadow: var(--shadow);
+        }
+        
+        .room-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: var(--text-primary);
+        }
+        
+        .room-members {
+            font-size: 12px;
+            color: #4CAF50;
+        }
+        
+        .join-btn {
+            padding: 6px 12px;
+            width: auto;
+            margin: 0;
+        }
+        
+        .messages {
+            flex: 1;
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            border: 2px solid var(--border-color);
+            padding: 15px;
+            border-radius: 12px;
+            background: var(--bg-primary);
+        }
+        
+        .message {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 10px;
+            background: #e8f5e9;
+            color: #333;
+        }
+        
+        .system-message {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 10px;
+            background: #e3f2fd;
+            font-style: italic;
+            font-size: 13px;
+        }
+        
+        [data-theme="dark"] .message {
+            background: #1a3a2a;
+            color: #e0e0e0;
+        }
+        
+        [data-theme="dark"] .system-message {
+            background: #1a2a3a;
+            color: #e0e0e0;
+        }
+        
+        .voice-controls, .text-input-area {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .text-input-area input {
+            flex: 1;
+            margin: 0;
+        }
+        
+        .text-input-area button {
+            width: auto;
+            padding: 12px 24px;
+            margin: 0;
+        }
+        
+        @media (max-width: 768px) {
+            .main-panel {
                 flex-direction: column;
             }
-            .delete-room-btn {
-                margin-left: 0;
-                margin-top: 5px;
+            .rooms-sidebar {
+                width: 100%;
+            }
+            .header {
+                flex-direction: column;
+                text-align: center;
             }
         }
     </style>
@@ -59,9 +308,10 @@
     <div class="dashboard">
         <div class="header">
             <h2>🎙️ Harmony Chat</h2>
-            <div class="online-counter">👥 Онлайн: <span id="global-online">0</span></div>
+            <div class="online-counter" id="online-counter">0 онлайн</div>
             <div class="header-buttons">
-                <a href="admin.html" class="admin-btn" style="display:none">🔧 Админ-панель</a>
+                <a href="admin.html" class="admin-btn" id="admin-btn" style="display:none">🔧 Админ-панель</a>
+                <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
                 <a href="logout.html" class="logout">🚪 Выйти</a>
             </div>
         </div>
@@ -93,9 +343,9 @@
                 </div>
                 
                 <div id="voice-controls" class="voice-controls" style="display:none">
-                    <button id="test-mic-btn" class="test-mic-btn" onclick="testMicrophone()">🎤 Проверить микрофон</button>
-                    <button id="mute-btn" class="mic-btn">🎤 Включить микрофон</button>
-                    <button id="leave-room" class="leave-btn">🚪 Покинуть комнату</button>
+                    <button onclick="testMicrophone()">🎤 Проверить микрофон</button>
+                    <button id="mute-btn">🎤 Включить микрофон</button>
+                    <button id="leave-room">🚪 Покинуть комнату</button>
                 </div>
                 
                 <div id="text-input" class="text-input-area" style="display:none">
@@ -107,25 +357,246 @@
     </div>
     
     <script>
-        // Получаем Static ID из URL или localStorage
+        // ============================================
+        // ТЕМНАЯ ТЕМА
+        // ============================================
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            const btn = document.getElementById('theme-btn');
+            if (btn) btn.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        }
+        
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            const btn = document.getElementById('theme-btn');
+            if (btn) btn.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        }
+        
+        loadTheme();
+        
+        // ============================================
+        // ПЕРЕМЕННЫЕ
+        // ============================================
+        let ws = null;
+        let currentRoom = null;
         let userStaticId = localStorage.getItem('userStaticId');
         
         if (!userStaticId) {
-            // Если нет ID - перенаправляем на главную
             window.location.href = '/';
         }
         
         document.getElementById('user-data').dataset.staticId = userStaticId;
         
-        // Проверяем, админ ли пользователь
-        fetch('/api.html?action=checkAdmin&static_id=' + userStaticId)
-            .then(res => res.json())
-            .then(data => {
-                if (data.is_admin) {
-                    document.querySelector('.admin-btn').style.display = 'inline-block';
+        // ============================================
+        // WEBSOCKET ПОДКЛЮЧЕНИЕ
+        // ============================================
+        function connectWebSocket() {
+            const wsUrl = `wss://${window.location.host}`;
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                ws.send(JSON.stringify({ type: 'auth', staticId: userStaticId }));
+                setInterval(() => {
+                    if (ws?.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'ping' }));
+                    }
+                }, 30000);
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (e) {
+                    console.error('Parse error:', e);
                 }
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket disconnected, reconnecting...');
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+        
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'online_count':
+                    updateOnlineCount(data.count);
+                    break;
+                case 'user_joined':
+                    addSystemMessage(`👋 ${data.userId} присоединился`);
+                    break;
+                case 'user_left':
+                    addSystemMessage(`👋 ${data.userId} покинул`);
+                    break;
+                default:
+                    console.log('Unknown message:', data.type);
+            }
+        }
+        
+        // ============================================
+        // ОНЛАЙН СЧЕТЧИК (реальное время)
+        // ============================================
+        function updateOnlineCount(count) {
+            const counter = document.getElementById('online-counter');
+            if (counter) {
+                counter.textContent = count + ' онлайн';
+            }
+        }
+        
+        async function fetchOnlineCount() {
+            try {
+                const response = await fetch('/api/online');
+                const data = await response.json();
+                updateOnlineCount(data.count);
+            } catch (error) {
+                console.error('Fetch online count error:', error);
+            }
+        }
+        
+        // ============================================
+        // КОМНАТЫ
+        // ============================================
+        async function loadRooms() {
+            try {
+                const response = await fetch('/api/rooms');
+                const rooms = await response.json();
+                displayRooms(rooms);
+            } catch (error) {
+                console.error('Load rooms error:', error);
+            }
+        }
+        
+        function displayRooms(rooms) {
+            const container = document.getElementById('rooms-list');
+            if (!container) return;
+            
+            if (rooms.length === 0) {
+                container.innerHTML = '<div class="info">📭 Нет комнат. Создайте первую!</div>';
+                return;
+            }
+            
+            container.innerHTML = '';
+            rooms.forEach(room => {
+                const roomDiv = document.createElement('div');
+                roomDiv.className = 'room-item';
+                roomDiv.innerHTML = `
+                    <div>
+                        <div class="room-name">${escapeHtml(room.name)} ${room.type === 'voice' ? '🎤' : '💬'}</div>
+                        <div class="room-members">👥 ${room.current_members || 0}/${room.max_people}</div>
+                    </div>
+                    <button class="join-btn" onclick="joinRoom(${room.id}, '${room.type}')">Войти</button>
+                `;
+                container.appendChild(roomDiv);
             });
+        }
+        
+        async function createRoom() {
+            const name = document.getElementById('room-name').value.trim();
+            const max = parseInt(document.getElementById('room-max').value);
+            const type = document.getElementById('room-type').value;
+            
+            if (!name) {
+                alert('Введите название комнаты');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/rooms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, max_people: max, type, created_by: userStaticId })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    addSystemMessage(`✅ Комната "${name}" создана!`);
+                    document.getElementById('room-name').value = '';
+                    loadRooms();
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Create room error:', error);
+            }
+        }
+        
+        async function joinRoom(roomId, roomType) {
+            try {
+                const response = await fetch(`/api/rooms/${roomId}/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_static_id: userStaticId })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    currentRoom = roomId;
+                    addSystemMessage(`🎤 Вы вошли в комнату "${data.room_name}"`);
+                    if (ws?.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'join_room', roomId: roomId }));
+                    }
+                    loadRooms();
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Join room error:', error);
+            }
+        }
+        
+        // ============================================
+        // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+        // ============================================
+        function addSystemMessage(text) {
+            const messagesDiv = document.getElementById('messages');
+            if (!messagesDiv) return;
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'system-message';
+            msgDiv.innerHTML = `🔔 ${escapeHtml(text)}`;
+            messagesDiv.appendChild(msgDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function testMicrophone() {
+            alert('🎤 Проверка микрофона: Разрешите доступ к микрофону в браузере');
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(() => alert('✅ Микрофон работает!'))
+                .catch(() => alert('❌ Нет доступа к микрофону'));
+        }
+        
+        function sendTextMessage() {
+            const input = document.getElementById('text-msg');
+            if (!input) return;
+            const message = input.value.trim();
+            if (!message) return;
+            addSystemMessage(`Вы: ${message}`);
+            input.value = '';
+        }
+        
+        // Глобальные функции
+        window.createRoom = createRoom;
+        window.joinRoom = joinRoom;
+        window.testMicrophone = testMicrophone;
+        window.sendTextMessage = sendTextMessage;
+        window.toggleTheme = toggleTheme;
+        
+        // ============================================
+        // ИНИЦИАЛИЗАЦИЯ
+        // ============================================
+        connectWebSocket();
+        loadRooms();
+        fetchOnlineCount();
+        setInterval(fetchOnlineCount, 3000);
     </script>
-    <script src="script.js"></script>
 </body>
 </html>

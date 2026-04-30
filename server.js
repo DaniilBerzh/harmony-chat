@@ -81,14 +81,13 @@ async function initDatabase() {
             )
         `);
         
-        // Таблица комнат
+        // Таблица комнат (БЕЗ created_by)
         await conn.query(`
             CREATE TABLE IF NOT EXISTS rooms (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(50) NOT NULL,
                 type VARCHAR(10) DEFAULT 'voice',
                 max_people INT DEFAULT 10,
-                created_by VARCHAR(10),
                 is_active BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -194,7 +193,6 @@ app.post('/api/register', async (req, res) => {
             [static_id, age, password_hash]
         );
         
-        // Логируем действие
         await db.promise().query(
             "INSERT INTO logs (action, user_static_id, details) VALUES (?, ?, ?)",
             ['register', static_id, 'Новая регистрация']
@@ -231,7 +229,6 @@ app.post('/api/login', async (req, res) => {
         
         const user = rows[0];
         
-        // Проверка бана
         if (user.is_banned && user.unban_date && new Date(user.unban_date) > new Date()) {
             return res.json({ success: false, error: `Вы забанены до ${new Date(user.unban_date).toLocaleString()}` });
         }
@@ -248,7 +245,6 @@ app.post('/api/login', async (req, res) => {
             is_admin: user.is_admin === 1
         });
         
-        // Логируем действие
         await db.promise().query(
             "INSERT INTO logs (action, user_static_id, details) VALUES (?, ?, ?)",
             ['login', static_id, 'Вход в систему']
@@ -308,26 +304,20 @@ app.get('/api/online', async (req, res) => {
     }
 });
 
-// Создать комнату
+// Создать комнату (БЕЗ created_by)
 app.post('/api/rooms', async (req, res) => {
     console.log('📝 Создание комнаты:', req.body);
     
     try {
-        const { name, max_people, type, created_by } = req.body;
+        const { name, max_people, type } = req.body;
         
         if (!name) {
             return res.json({ success: false, error: 'Название комнаты обязательно' });
         }
         
         const [result] = await db.promise().query(
-            "INSERT INTO rooms (name, max_people, type, created_by) VALUES (?, ?, ?, ?)",
-            [name, max_people || 10, type || 'voice', created_by || 'system']
-        );
-        
-        // Логируем действие
-        await db.promise().query(
-            "INSERT INTO logs (action, user_static_id, details, room_id) VALUES (?, ?, ?, ?)",
-            ['create_room', created_by || 'system', `Создана комната "${name}"`, result.insertId]
+            "INSERT INTO rooms (name, max_people, type) VALUES (?, ?, ?)",
+            [name, max_people || 10, type || 'voice']
         );
         
         res.json({ success: true, room_id: result.insertId, room_name: name });
@@ -354,7 +344,6 @@ app.post('/api/rooms/:id/join', async (req, res) => {
             return res.json({ success: false, error: 'Комната не найдена' });
         }
         
-        // Проверяем количество участников
         const [count] = await db.promise().query(
             "SELECT COUNT(*) as cnt FROM room_members WHERE room_id = ?",
             [roomId]
@@ -367,12 +356,6 @@ app.post('/api/rooms/:id/join', async (req, res) => {
         await db.promise().query(
             "INSERT IGNORE INTO room_members (room_id, user_static_id) VALUES (?, ?)",
             [roomId, user_static_id]
-        );
-        
-        // Логируем действие
-        await db.promise().query(
-            "INSERT INTO logs (action, user_static_id, details, room_id) VALUES (?, ?, ?, ?)",
-            ['join_room', user_static_id, `Вход в комнату "${room[0].name}"`, roomId]
         );
         
         res.json({ success: true, room_name: room[0].name });
@@ -409,19 +392,10 @@ app.delete('/api/rooms/:id', async (req, res) => {
     try {
         const roomId = req.params.id;
         
-        // Получаем название комнаты для лога
         const [room] = await db.promise().query("SELECT name FROM rooms WHERE id = ?", [roomId]);
         
-        // Удаляем всех участников
         await db.promise().query("DELETE FROM room_members WHERE room_id = ?", [roomId]);
-        // Удаляем комнату
         await db.promise().query("DELETE FROM rooms WHERE id = ?", [roomId]);
-        
-        // Логируем действие
-        await db.promise().query(
-            "INSERT INTO logs (action, details, room_id) VALUES (?, ?, ?)",
-            ['delete_room', `Удалена комната "${room[0]?.name || 'unknown'}"`, roomId]
-        );
         
         res.json({ success: true });
     } catch (error) {
@@ -446,21 +420,18 @@ app.get('/api/checkAdmin', async (req, res) => {
 });
 
 // ============================================
-// АДМИНИСТРАТИВНЫЕ API МАРШРУТЫ
+// АДМИНИСТРАТИВНЫЕ API
 // ============================================
 
-// Получить логи
 app.get('/api/admin/logs', async (req, res) => {
     try {
         const [rows] = await db.promise().query("SELECT * FROM logs ORDER BY created_at DESC LIMIT 100");
         res.json(rows);
     } catch (error) {
-        console.error('Get logs error:', error);
         res.json([]);
     }
 });
 
-// Получить всех пользователей
 app.get('/api/admin/users', async (req, res) => {
     try {
         const [rows] = await db.promise().query(`
@@ -470,34 +441,28 @@ app.get('/api/admin/users', async (req, res) => {
         `);
         res.json(rows);
     } catch (error) {
-        console.error('Get users error:', error);
         res.json([]);
     }
 });
 
-// Получить бан-лист
 app.get('/api/admin/bans', async (req, res) => {
     try {
         const [rows] = await db.promise().query("SELECT * FROM ban_list ORDER BY ban_date DESC");
         res.json(rows);
     } catch (error) {
-        console.error('Get bans error:', error);
         res.json([]);
     }
 });
 
-// Получить репорты
 app.get('/api/admin/reports', async (req, res) => {
     try {
         const [rows] = await db.promise().query("SELECT * FROM reports ORDER BY created_at DESC");
         res.json(rows);
     } catch (error) {
-        console.error('Get reports error:', error);
         res.json([]);
     }
 });
 
-// Обработка репортов
 app.post('/api/admin/reports', async (req, res) => {
     const { action, report_id, reason, admin_id } = req.body;
     
@@ -518,18 +483,15 @@ app.post('/api/admin/reports', async (req, res) => {
             res.json({ success: false, error: 'Неизвестное действие' });
         }
     } catch (error) {
-        console.error('Report action error:', error);
         res.json({ success: false, error: error.message });
     }
 });
 
-// Выполнение команд консоли
 app.post('/api/admin/command', async (req, res) => {
     const { command, admin_id } = req.body;
     console.log(`📝 Команда от ${admin_id}: ${command}`);
     
     try {
-        // Проверяем, что пользователь админ
         const [admin] = await db.promise().query("SELECT is_admin FROM users WHERE static_id = ?", [admin_id]);
         if (admin.length === 0 || !admin[0].is_admin) {
             return res.json({ success: false, error: 'Нет прав администратора' });
@@ -555,11 +517,6 @@ app.post('/api/admin/command', async (req, res) => {
                 [target, admin_id, reason, unbanDate]
             );
             
-            await db.promise().query(
-                "INSERT INTO logs (action, user_static_id, target_static_id, details) VALUES (?, ?, ?, ?)",
-                ['ban', admin_id, target, `Забанен на ${days} дней. Причина: ${reason}`]
-            );
-            
             res.json({ success: true, message: `Пользователь ${target} забанен на ${days} дней` });
         }
         else if (cmd === '/unban' && parts.length >= 2) {
@@ -568,11 +525,6 @@ app.post('/api/admin/command', async (req, res) => {
             await db.promise().query(
                 "UPDATE users SET is_banned = 0, ban_reason = NULL, unban_date = NULL WHERE static_id = ?",
                 [target]
-            );
-            
-            await db.promise().query(
-                "INSERT INTO logs (action, user_static_id, target_static_id, details) VALUES (?, ?, ?, ?)",
-                ['unban', admin_id, target, 'Разбанен']
             );
             
             res.json({ success: true, message: `Пользователь ${target} разбанен` });
@@ -585,33 +537,12 @@ app.post('/api/admin/command', async (req, res) => {
                 [target]
             );
             
-            await db.promise().query(
-                "INSERT INTO logs (action, user_static_id, target_static_id, details) VALUES (?, ?, ?, ?)",
-                ['make_admin', admin_id, target, 'Назначен администратором']
-            );
-            
             res.json({ success: true, message: `Пользователь ${target} назначен администратором` });
         }
-        else if (cmd === '/removeadmin' && parts.length >= 2) {
-            const target = parts[1];
-            
-            await db.promise().query(
-                "UPDATE users SET is_admin = 0 WHERE static_id = ?",
-                [target]
-            );
-            
-            await db.promise().query(
-                "INSERT INTO logs (action, user_static_id, target_static_id, details) VALUES (?, ?, ?, ?)",
-                ['remove_admin', admin_id, target, 'Сняты права администратора']
-            );
-            
-            res.json({ success: true, message: `Права администратора сняты с ${target}` });
-        }
         else {
-            res.json({ success: false, error: 'Неизвестная команда. Доступно: /ban, /unban, /makeadmin, /removeadmin' });
+            res.json({ success: false, error: 'Неизвестная команда. Доступно: /ban, /unban, /makeadmin' });
         }
     } catch (error) {
-        console.error('Command error:', error);
         res.json({ success: false, error: error.message });
     }
 });
@@ -619,41 +550,15 @@ app.post('/api/admin/command', async (req, res) => {
 // ============================================
 // СТАТИЧЕСКИЕ ФАЙЛЫ (HTML)
 // ============================================
-app.get('/', (req, res) => {
-    sendHtml(res, 'index.html');
-});
-
-app.get('/index.html', (req, res) => {
-    sendHtml(res, 'index.html');
-});
-
-app.get('/dashboard.html', (req, res) => {
-    sendHtml(res, 'dashboard.html');
-});
-
-app.get('/admin.html', (req, res) => {
-    sendHtml(res, 'admin.html');
-});
-
-app.get('/login.html', (req, res) => {
-    sendHtml(res, 'login.html');
-});
-
-app.get('/register.html', (req, res) => {
-    sendHtml(res, 'register.html');
-});
-
-app.get('/logout.html', (req, res) => {
-    sendHtml(res, 'logout.html');
-});
-
-app.get('/style.css', (req, res) => {
-    res.sendFile(path.join(__dirname, 'style.css'));
-});
-
-app.get('/script.js', (req, res) => {
-    res.sendFile(path.join(__dirname, 'script.js'));
-});
+app.get('/', (req, res) => { sendHtml(res, 'index.html'); });
+app.get('/index.html', (req, res) => { sendHtml(res, 'index.html'); });
+app.get('/dashboard.html', (req, res) => { sendHtml(res, 'dashboard.html'); });
+app.get('/admin.html', (req, res) => { sendHtml(res, 'admin.html'); });
+app.get('/login.html', (req, res) => { sendHtml(res, 'login.html'); });
+app.get('/register.html', (req, res) => { sendHtml(res, 'register.html'); });
+app.get('/logout.html', (req, res) => { sendHtml(res, 'logout.html'); });
+app.get('/style.css', (req, res) => { res.sendFile(path.join(__dirname, 'style.css')); });
+app.get('/script.js', (req, res) => { res.sendFile(path.join(__dirname, 'script.js')); });
 
 // ============================================
 // WEBSOCKET

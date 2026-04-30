@@ -59,9 +59,7 @@
             gap: 15px;
         }
         
-        .header h2 {
-            color: var(--text-primary);
-        }
+        .header h2 { color: var(--text-primary); }
         
         .online-counter {
             background: #4CAF50;
@@ -83,15 +81,8 @@
             font-size: 14px;
         }
         
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-        
-        @keyframes glow {
-            0%, 100% { box-shadow: 0 2px 5px rgba(76, 175, 80, 0.3); }
-            50% { box-shadow: 0 2px 15px rgba(76, 175, 80, 0.6); }
-        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes glow { 0%, 100% { box-shadow: 0 2px 5px rgba(76, 175, 80, 0.3); } 50% { box-shadow: 0 2px 15px rgba(76, 175, 80, 0.6); } }
         
         .theme-btn {
             background: var(--bg-primary);
@@ -107,9 +98,7 @@
             transition: all 0.3s;
         }
         
-        .theme-btn:hover {
-            transform: scale(1.05);
-        }
+        .theme-btn:hover { transform: scale(1.05); }
         
         .header-buttons {
             display: flex;
@@ -125,14 +114,8 @@
             font-weight: bold;
             transition: all 0.3s;
         }
-        
-        .admin-btn {
-            background: #ff9800;
-        }
-        
-        .logout {
-            background: #f44336;
-        }
+        .admin-btn { background: #ff9800; }
+        .logout { background: #f44336; }
         
         .main-panel {
             display: flex;
@@ -188,9 +171,7 @@
             transition: all 0.3s;
         }
         
-        button:hover {
-            transform: translateY(-2px);
-        }
+        button:hover { transform: translateY(-2px); }
         
         .room-item {
             background: var(--bg-secondary);
@@ -209,27 +190,9 @@
             box-shadow: var(--shadow);
         }
         
-        .room-info {
-            flex: 1;
-        }
-        
-        .room-name {
-            font-weight: bold;
-            font-size: 16px;
-            color: var(--text-primary);
-        }
-        
-        .room-creator {
-            font-size: 10px;
-            color: var(--text-secondary);
-            margin-top: 3px;
-        }
-        
-        .room-members {
-            font-size: 12px;
-            color: #4CAF50;
-            margin-top: 5px;
-        }
+        .room-info { flex: 1; }
+        .room-name { font-weight: bold; font-size: 16px; color: var(--text-primary); }
+        .room-members { font-size: 12px; color: #4CAF50; margin-top: 5px; }
         
         .room-actions {
             display: flex;
@@ -252,9 +215,7 @@
             font-size: 13px;
         }
         
-        .delete-btn:hover {
-            background: #d32f2f;
-        }
+        .delete-btn:hover { background: #d32f2f; }
         
         .messages {
             flex: 1;
@@ -282,22 +243,11 @@
         }
         
         @media (max-width: 768px) {
-            .main-panel {
-                flex-direction: column;
-            }
-            .rooms-sidebar {
-                width: 100%;
-            }
-            .header {
-                flex-direction: column;
-                text-align: center;
-            }
-            .room-actions {
-                flex-direction: column;
-            }
-            .join-btn, .delete-btn {
-                width: 100%;
-            }
+            .main-panel { flex-direction: column; }
+            .rooms-sidebar { width: 100%; }
+            .header { flex-direction: column; text-align: center; }
+            .room-actions { flex-direction: column; }
+            .join-btn, .delete-btn { width: 100%; }
         }
     </style>
 </head>
@@ -336,7 +286,6 @@
             
             <div class="chat-area">
                 <div id="current-room-info"></div>
-                
                 <div id="messages" class="messages">
                     <div class="system-message">🔔 Добро пожаловать в Harmony Chat! Создайте или выберите комнату.</div>
                 </div>
@@ -345,9 +294,6 @@
     </div>
     
     <script>
-        // ============================================
-        // ТЕМНАЯ ТЕМА
-        // ============================================
         function loadTheme() {
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-theme', savedTheme);
@@ -366,69 +312,46 @@
         
         loadTheme();
         
-        // ============================================
-        // ПЕРЕМЕННЫЕ
-        // ============================================
         let userStaticId = localStorage.getItem('userStaticId');
-        
-        if (!userStaticId) {
-            window.location.href = '/';
-        }
-        
+        if (!userStaticId) window.location.href = '/';
         document.getElementById('user-data').dataset.staticId = userStaticId;
         
-        // ============================================
-        // ОНЛАЙН СЧЕТЧИК
-        // ============================================
         async function fetchOnlineCount() {
             try {
                 const response = await fetch('/api/online');
                 const data = await response.json();
                 const counter = document.getElementById('online-counter');
                 if (counter) counter.textContent = data.count + ' онлайн';
-            } catch (error) {
-                console.error('Fetch online count error:', error);
-            }
+            } catch (error) { console.error(error); }
         }
         
-        // ============================================
-        // КОМНАТЫ
-        // ============================================
         async function loadRooms() {
             try {
                 const response = await fetch('/api/rooms');
                 const rooms = await response.json();
                 displayRooms(rooms);
-            } catch (error) {
-                console.error('Load rooms error:', error);
-            }
+            } catch (error) { console.error(error); }
         }
         
         function displayRooms(rooms) {
             const container = document.getElementById('rooms-list');
             if (!container) return;
-            
             if (rooms.length === 0) {
                 container.innerHTML = '<div class="info" style="text-align:center; padding:20px;">📭 Нет комнат. Создайте первую!</div>';
                 return;
             }
-            
             container.innerHTML = '';
             rooms.forEach(room => {
                 const typeIcon = room.type === 'voice' ? '🎤' : '💬';
-                const canDelete = room.created_by === userStaticId;
-                
                 const roomDiv = document.createElement('div');
                 roomDiv.className = 'room-item';
                 roomDiv.innerHTML = `
                     <div class="room-info">
                         <div class="room-name">${escapeHtml(room.name)} ${typeIcon}</div>
                         <div class="room-members">👥 ${room.current_members || 0}/${room.max_people}</div>
-                        ${room.created_by ? `<div class="room-creator">👑 Создатель: ${escapeHtml(room.created_by)}</div>` : ''}
                     </div>
                     <div class="room-actions">
                         <button class="join-btn" onclick="joinRoom(${room.id}, '${room.type}', '${escapeHtml(room.name)}')">Войти</button>
-                        ${canDelete ? `<button class="delete-btn" onclick="deleteRoom(${room.id})">🗑️ Удалить</button>` : ''}
                     </div>
                 `;
                 container.appendChild(roomDiv);
@@ -439,56 +362,22 @@
             const name = document.getElementById('room-name').value.trim();
             const max = parseInt(document.getElementById('room-max').value);
             const type = document.getElementById('room-type').value;
-            
-            if (!name) {
-                alert('Введите название комнаты');
-                return;
-            }
-            
+            if (!name) { alert('Введите название комнаты'); return; }
             try {
                 const response = await fetch('/api/rooms', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, max_people: max, type, created_by: userStaticId })
+                    body: JSON.stringify({ name, max_people: max, type })
                 });
                 const data = await response.json();
-                
                 if (data.success) {
                     addSystemMessage(`✅ Комната "${name}" создана!`);
                     document.getElementById('room-name').value = '';
                     loadRooms();
-                } else {
-                    alert('Ошибка: ' + data.error);
-                }
-            } catch (error) {
-                console.error('Create room error:', error);
-                alert('Ошибка создания комнаты');
-            }
+                } else { alert('Ошибка: ' + data.error); }
+            } catch (error) { console.error(error); alert('Ошибка создания комнаты'); }
         }
         
-        // Удаление комнаты
-        async function deleteRoom(roomId) {
-            if (!confirm('🗑️ Вы уверены, что хотите удалить эту комнату?')) return;
-            
-            try {
-                const response = await fetch(`/api/rooms/${roomId}`, {
-                    method: 'DELETE'
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    addSystemMessage(`✅ Комната удалена`);
-                    loadRooms();
-                } else {
-                    alert('Ошибка: ' + data.error);
-                }
-            } catch (error) {
-                console.error('Delete room error:', error);
-                alert('Ошибка удаления комнаты');
-            }
-        }
-        
-        // Вход в комнату
         async function joinRoom(roomId, roomType, roomName) {
             if (roomType === 'voice') {
                 try {
@@ -498,24 +387,13 @@
                         body: JSON.stringify({ user_static_id: userStaticId })
                     });
                     const data = await response.json();
-                    
                     if (data.success) {
                         window.location.href = `/room.html?id=${roomId}&name=${encodeURIComponent(roomName)}`;
-                    } else {
-                        alert('Ошибка: ' + data.error);
-                    }
-                } catch (error) {
-                    console.error('Join room error:', error);
-                    alert('Ошибка входа в комнату');
-                }
-            } else {
-                alert('Текстовая комната в разработке');
-            }
+                    } else { alert('Ошибка: ' + data.error); }
+                } catch (error) { console.error(error); alert('Ошибка входа в комнату'); }
+            } else { alert('Текстовая комната в разработке'); }
         }
         
-        // ============================================
-        // СООБЩЕНИЯ
-        // ============================================
         function addSystemMessage(text) {
             const messagesDiv = document.getElementById('messages');
             if (!messagesDiv) return;
@@ -532,34 +410,22 @@
             return div.innerHTML;
         }
         
-        // ============================================
-        // ПРОВЕРКА АДМИНА
-        // ============================================
         async function checkAdmin() {
             try {
                 const response = await fetch(`/api/checkAdmin?static_id=${userStaticId}`);
                 const data = await response.json();
-                if (data.is_admin) {
-                    document.getElementById('admin-btn').style.display = 'inline-block';
-                }
-            } catch (error) {
-                console.error('Check admin error:', error);
-            }
+                if (data.is_admin) document.getElementById('admin-btn').style.display = 'inline-block';
+            } catch (error) { console.error(error); }
         }
         
-        // ============================================
-        // ИНИЦИАЛИЗАЦИЯ
-        // ============================================
         loadRooms();
         fetchOnlineCount();
         checkAdmin();
         setInterval(fetchOnlineCount, 5000);
         setInterval(loadRooms, 5000);
         
-        // Глобальные функции
         window.createRoom = createRoom;
         window.joinRoom = joinRoom;
-        window.deleteRoom = deleteRoom;
         window.toggleTheme = toggleTheme;
     </script>
 </body>

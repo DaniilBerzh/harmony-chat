@@ -6,10 +6,10 @@
     <title>Harmony Chat - Голосовой чат</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Темная тема */
         :root {
             --bg-primary: #f5f5f5;
             --bg-secondary: #ffffff;
+            --bg-sidebar: #f9f9f9;
             --text-primary: #333333;
             --text-secondary: #666666;
             --border-color: #dddddd;
@@ -20,23 +20,18 @@
         [data-theme="dark"] {
             --bg-primary: #1a1a1a;
             --bg-secondary: #2d2d2d;
+            --bg-sidebar: #252525;
             --text-primary: #e0e0e0;
             --text-secondary: #b0b0b0;
             --border-color: #404040;
             --shadow: 0 2px 10px rgba(0,0,0,0.3);
-            --gradient-start: #5a6fd6;
-            --gradient-end: #6a3d8e;
         }
         
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -67,7 +62,6 @@
             color: var(--text-primary);
         }
         
-        /* Онлайн счетчик - зеленый с анимацией */
         .online-counter {
             background: #4CAF50;
             padding: 8px 18px;
@@ -98,7 +92,6 @@
             50% { box-shadow: 0 2px 15px rgba(76, 175, 80, 0.6); }
         }
         
-        /* Кнопка переключения темы */
         .theme-btn {
             background: var(--bg-primary);
             border: 2px solid var(--border-color);
@@ -148,7 +141,7 @@
         
         .rooms-sidebar {
             width: 320px;
-            background: var(--bg-primary);
+            background: var(--bg-sidebar);
             padding: 20px;
             border-radius: 15px;
             overflow-y: auto;
@@ -216,19 +209,31 @@
             box-shadow: var(--shadow);
         }
         
+        .room-info {
+            flex: 1;
+        }
+        
         .room-name {
             font-weight: bold;
             font-size: 16px;
             color: var(--text-primary);
         }
         
+        .room-type {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-left: 5px;
+        }
+        
         .room-members {
             font-size: 12px;
             color: #4CAF50;
+            margin-top: 5px;
+            display: block;
         }
         
         .join-btn {
-            padding: 6px 12px;
+            padding: 6px 15px;
             width: auto;
             margin: 0;
         }
@@ -269,23 +274,6 @@
         [data-theme="dark"] .system-message {
             background: #1a2a3a;
             color: #e0e0e0;
-        }
-        
-        .voice-controls, .text-input-area {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        
-        .text-input-area input {
-            flex: 1;
-            margin: 0;
-        }
-        
-        .text-input-area button {
-            width: auto;
-            padding: 12px 24px;
-            margin: 0;
         }
         
         @media (max-width: 768px) {
@@ -339,18 +327,7 @@
                 <div id="current-room-info"></div>
                 
                 <div id="messages" class="messages">
-                    <div class="system-message">🔔 Добро пожаловать в Harmony Chat! Выберите или создайте комнату.</div>
-                </div>
-                
-                <div id="voice-controls" class="voice-controls" style="display:none">
-                    <button onclick="testMicrophone()">🎤 Проверить микрофон</button>
-                    <button id="mute-btn">🎤 Включить микрофон</button>
-                    <button id="leave-room">🚪 Покинуть комнату</button>
-                </div>
-                
-                <div id="text-input" class="text-input-area" style="display:none">
-                    <input type="text" id="text-msg" placeholder="Введите сообщение..." maxlength="500">
-                    <button onclick="sendTextMessage()">📨 Отправить</button>
+                    <div class="system-message">🔔 Добро пожаловать в Harmony Chat! Создайте или выберите комнату.</div>
                 </div>
             </div>
         </div>
@@ -381,8 +358,6 @@
         // ============================================
         // ПЕРЕМЕННЫЕ
         // ============================================
-        let ws = null;
-        let currentRoom = null;
         let userStaticId = localStorage.getItem('userStaticId');
         
         if (!userStaticId) {
@@ -392,68 +367,14 @@
         document.getElementById('user-data').dataset.staticId = userStaticId;
         
         // ============================================
-        // WEBSOCKET ПОДКЛЮЧЕНИЕ
+        // ОНЛАЙН СЧЕТЧИК
         // ============================================
-        function connectWebSocket() {
-            const wsUrl = `wss://${window.location.host}`;
-            ws = new WebSocket(wsUrl);
-            
-            ws.onopen = () => {
-                console.log('WebSocket connected');
-                ws.send(JSON.stringify({ type: 'auth', staticId: userStaticId }));
-                setInterval(() => {
-                    if (ws?.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({ type: 'ping' }));
-                    }
-                }, 30000);
-            };
-            
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    handleWebSocketMessage(data);
-                } catch (e) {
-                    console.error('Parse error:', e);
-                }
-            };
-            
-            ws.onclose = () => {
-                console.log('WebSocket disconnected, reconnecting...');
-                setTimeout(connectWebSocket, 3000);
-            };
-        }
-        
-        function handleWebSocketMessage(data) {
-            switch(data.type) {
-                case 'online_count':
-                    updateOnlineCount(data.count);
-                    break;
-                case 'user_joined':
-                    addSystemMessage(`👋 ${data.userId} присоединился`);
-                    break;
-                case 'user_left':
-                    addSystemMessage(`👋 ${data.userId} покинул`);
-                    break;
-                default:
-                    console.log('Unknown message:', data.type);
-            }
-        }
-        
-        // ============================================
-        // ОНЛАЙН СЧЕТЧИК (реальное время)
-        // ============================================
-        function updateOnlineCount(count) {
-            const counter = document.getElementById('online-counter');
-            if (counter) {
-                counter.textContent = count + ' онлайн';
-            }
-        }
-        
         async function fetchOnlineCount() {
             try {
                 const response = await fetch('/api/online');
                 const data = await response.json();
-                updateOnlineCount(data.count);
+                const counter = document.getElementById('online-counter');
+                if (counter) counter.textContent = data.count + ' онлайн';
             } catch (error) {
                 console.error('Fetch online count error:', error);
             }
@@ -477,7 +398,7 @@
             if (!container) return;
             
             if (rooms.length === 0) {
-                container.innerHTML = '<div class="info">📭 Нет комнат. Создайте первую!</div>';
+                container.innerHTML = '<div class="info" style="text-align:center; padding:20px;">📭 Нет комнат. Создайте первую!</div>';
                 return;
             }
             
@@ -485,12 +406,16 @@
             rooms.forEach(room => {
                 const roomDiv = document.createElement('div');
                 roomDiv.className = 'room-item';
+                const typeIcon = room.type === 'voice' ? '🎤' : '💬';
                 roomDiv.innerHTML = `
-                    <div>
-                        <div class="room-name">${escapeHtml(room.name)} ${room.type === 'voice' ? '🎤' : '💬'}</div>
+                    <div class="room-info">
+                        <div>
+                            <span class="room-name">${escapeHtml(room.name)}</span>
+                            <span class="room-type">${typeIcon}</span>
+                        </div>
                         <div class="room-members">👥 ${room.current_members || 0}/${room.max_people}</div>
                     </div>
-                    <button class="join-btn" onclick="joinRoom(${room.id}, '${room.type}')">Войти</button>
+                    <button class="join-btn" onclick="joinRoom(${room.id}, '${room.type}', '${escapeHtml(room.name)}')">Войти</button>
                 `;
                 container.appendChild(roomDiv);
             });
@@ -510,9 +435,10 @@
                 const response = await fetch('/api/rooms', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, max_people: max, type, created_by: userStaticId })
+                    body: JSON.stringify({ name, max_people: max, type })
                 });
                 const data = await response.json();
+                
                 if (data.success) {
                     addSystemMessage(`✅ Комната "${name}" создана!`);
                     document.getElementById('room-name').value = '';
@@ -522,34 +448,39 @@
                 }
             } catch (error) {
                 console.error('Create room error:', error);
+                alert('Ошибка создания комнаты');
             }
         }
         
-        async function joinRoom(roomId, roomType) {
-            try {
-                const response = await fetch(`/api/rooms/${roomId}/join`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_static_id: userStaticId })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    currentRoom = roomId;
-                    addSystemMessage(`🎤 Вы вошли в комнату "${data.room_name}"`);
-                    if (ws?.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({ type: 'join_room', roomId: roomId }));
+        // Функция входа в комнату - ПЕРЕХОД НА СТРАНИЦУ КОМНАТЫ
+        async function joinRoom(roomId, roomType, roomName) {
+            if (roomType === 'voice') {
+                // Проверяем, не заполнена ли комната
+                try {
+                    const response = await fetch(`/api/rooms/${roomId}/join`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_static_id: userStaticId })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Переходим на страницу комнаты
+                        window.location.href = `/room.html?id=${roomId}&name=${encodeURIComponent(roomName)}`;
+                    } else {
+                        alert('Ошибка: ' + data.error);
                     }
-                    loadRooms();
-                } else {
-                    alert('Ошибка: ' + data.error);
+                } catch (error) {
+                    console.error('Join room error:', error);
+                    alert('Ошибка входа в комнату');
                 }
-            } catch (error) {
-                console.error('Join room error:', error);
+            } else {
+                alert('Текстовая комната в разработке');
             }
         }
         
         // ============================================
-        // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+        // СООБЩЕНИЯ
         // ============================================
         function addSystemMessage(text) {
             const messagesDiv = document.getElementById('messages');
@@ -567,36 +498,34 @@
             return div.innerHTML;
         }
         
-        function testMicrophone() {
-            alert('🎤 Проверка микрофона: Разрешите доступ к микрофону в браузере');
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(() => alert('✅ Микрофон работает!'))
-                .catch(() => alert('❌ Нет доступа к микрофону'));
+        // ============================================
+        // ПРОВЕРКА АДМИНА
+        // ============================================
+        async function checkAdmin() {
+            try {
+                const response = await fetch(`/api/checkAdmin?static_id=${userStaticId}`);
+                const data = await response.json();
+                if (data.is_admin) {
+                    document.getElementById('admin-btn').style.display = 'inline-block';
+                }
+            } catch (error) {
+                console.error('Check admin error:', error);
+            }
         }
-        
-        function sendTextMessage() {
-            const input = document.getElementById('text-msg');
-            if (!input) return;
-            const message = input.value.trim();
-            if (!message) return;
-            addSystemMessage(`Вы: ${message}`);
-            input.value = '';
-        }
-        
-        // Глобальные функции
-        window.createRoom = createRoom;
-        window.joinRoom = joinRoom;
-        window.testMicrophone = testMicrophone;
-        window.sendTextMessage = sendTextMessage;
-        window.toggleTheme = toggleTheme;
         
         // ============================================
         // ИНИЦИАЛИЗАЦИЯ
         // ============================================
-        connectWebSocket();
         loadRooms();
         fetchOnlineCount();
-        setInterval(fetchOnlineCount, 3000);
+        checkAdmin();
+        setInterval(fetchOnlineCount, 5000);
+        setInterval(loadRooms, 5000);
+        
+        // Глобальные функции
+        window.createRoom = createRoom;
+        window.joinRoom = joinRoom;
+        window.toggleTheme = toggleTheme;
     </script>
 </body>
 </html>

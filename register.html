@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация - Harmony Chat</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .auth-box {
+            max-width: 400px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+        }
+        .form-container h3 {
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            text-align: center;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: var(--gradient-start);
+            text-decoration: none;
+        }
+        .error {
+            background: #f44336;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .success {
+            background: #4CAF50;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .success-block {
+            background: #4CAF50;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            text-align: center;
+            animation: static 0.5s;
+        }
+        @keyframes static {
+            0% { text-shadow: 2px 2px 0 red; }
+            100% { text-shadow: none; }
+        }
+        #reg-static-id {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 16px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🎤 Harmony Chat</h1>
+            <p>Анонимное голосовое общение</p>
+        </div>
+        
+        <div class="auth-box">
+            <div class="form-container">
+                <h3>📝 Создать аккаунт</h3>
+                <input type="number" id="reg-age" placeholder="Возраст (11-18)" min="11" max="18">
+                <input type="password" id="reg-password" placeholder="Пароль">
+                <button onclick="register()">Зарегистрироваться</button>
+                <div id="reg-message"></div>
+                <div id="reg-static-id" style="display:none;"></div>
+                <a href="/" class="back-link">← Уже есть аккаунт? Войти</a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        async function register() {
+            const age = document.getElementById('reg-age').value;
+            const password = document.getElementById('reg-password').value;
+            const messageDiv = document.getElementById('reg-message');
+            const staticIdDiv = document.getElementById('reg-static-id');
+            
+            // Очищаем предыдущие сообщения
+            messageDiv.innerHTML = '';
+            staticIdDiv.style.display = 'none';
+            
+            // Валидация
+            if (!age || age < 11 || age > 18) {
+                messageDiv.innerHTML = '<div class="error">❌ Введите возраст от 11 до 18 лет</div>';
+                return;
+            }
+            
+            if (!password || password.length < 4) {
+                messageDiv.innerHTML = '<div class="error">❌ Пароль должен содержать минимум 4 символа</div>';
+                return;
+            }
+            
+            messageDiv.innerHTML = '<div class="success">📝 Регистрация...</div>';
+            
+            try {
+                const response = await fetch('/register.html', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        age: parseInt(age), 
+                        password: password 
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('Response:', data);
+                
+                if (data.success) {
+                    staticIdDiv.style.display = 'block';
+                    staticIdDiv.innerHTML = `
+                        <div class="success-block">
+                            🔊 Статик шум... Аккаунт создан!<br>
+                            Ваш Static ID: <strong style="font-size: 24px;">${data.static_id}</strong>
+                            <br><small>Сохраните его!</small>
+                        </div>
+                    `;
+                    messageDiv.innerHTML = '';
+                    
+                    // Сохраняем ID в localStorage
+                    localStorage.setItem('userStaticId', data.static_id);
+                    
+                    // Автоматически перенаправляем на страницу входа через 3 секунды
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 3000);
+                } else {
+                    messageDiv.innerHTML = '<div class="error">❌ ' + (data.error || 'Ошибка регистрации') + '</div>';
+                }
+            } catch (error) {
+                console.error('Register error:', error);
+                messageDiv.innerHTML = '<div class="error">❌ Ошибка соединения с сервером. Попробуйте позже.</div>';
+            }
+        }
+        
+        // Обработка Enter
+        document.getElementById('reg-age').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') register();
+        });
+        document.getElementById('reg-password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') register();
+        });
+    </script>
+</body>
+</html>

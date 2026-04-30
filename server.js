@@ -20,7 +20,7 @@ app.use(express.static(__dirname));
 let dbHost = process.env.MYSQLHOST || 'mysql.railway.internal';
 let dbPort = parseInt(process.env.MYSQLPORT) || 3306;
 let dbUser = process.env.MYSQLUSER || 'root';
-let dbPassword = process.env.MYSQLPASSWORD || '';
+let dbPassword = process.env.MYSQLPASSWORD || 'EfZwXgXXTMgSYxACiVlZtSenliMOymaC';
 let dbDatabase = process.env.MYSQLDATABASE || 'railway';
 
 console.log('========== ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ ==========');
@@ -116,6 +116,31 @@ async function initDatabase() {
             )
         `);
         
+        // Таблица банов
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS ban_list (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_static_id VARCHAR(10),
+                banned_by VARCHAR(10),
+                reason TEXT,
+                ban_date DATETIME,
+                unban_date DATETIME
+            )
+        `);
+        
+        // Таблица репортов
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS reports (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                reporter_static_id VARCHAR(10),
+                reported_static_id VARCHAR(10),
+                reason TEXT,
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at DATETIME
+            )
+        `);
+        
         console.log('✅ База данных инициализирована');
         conn.release();
     } catch (error) {
@@ -132,6 +157,29 @@ db.getConnection((err, connection) => {
         initDatabase();
     }
 });
+
+// ============================================
+// ФУНКЦИИ WEBSOCKET
+// ============================================
+
+// Отправка сообщения всем в комнате
+function broadcastToRoom(roomId, message) {
+    for (let [id, client] of clients.entries()) {
+        if (client.roomId === roomId && client.ws?.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify(message));
+        }
+    }
+}
+
+// Отправка онлайн счетчика
+function broadcastOnlineCount() {
+    const onlineCount = clients.size;
+    for (let [id, client] of clients.entries()) {
+        if (client.ws?.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify({ type: 'online_count', count: onlineCount }));
+        }
+    }
+}
 
 // ============================================
 // API МАРШРУТЫ
@@ -168,12 +216,17 @@ app.post('/api/register', async (req, res) => {
             [static_id, age, password_hash]
         );
         
+        await db.promise().query(
+            "INSERT INTO logs (action, user_static_id, details) VALUES (?, ?, ?)",
+            ['register', static_id, 'Новая регистрация']
+        );
+        
         console.log(`✅ Зарегистрирован: ${static_id}`);
         res.json({ success: true, static_id: static_id });
         
     } catch (error) {
         console.error('Register error:', error);
-        res.json({ success: false, error: 'Ошибка сервера' });
+        res.json({ success: false, error: 'Ошибка сервера: ' + error.message });
     }
 });
 
@@ -198,6 +251,11 @@ app.post('/api/login', async (req, res) => {
         }
         
         const user = rows[0];
+        
+        if (user.is_banned && user.unban_date && new Date(user.unban_date) > new Date()) {
+            return res.json({ success: false, error: `Вы забанены до ${new Date(user.unban_date).toLocaleString()}` });
+        }
+        
         const password_hash = crypto.createHash('sha256').update(password).digest('hex');
         
         if (user.password_hash !== password_hash) {
@@ -209,6 +267,11 @@ app.post('/api/login', async (req, res) => {
             static_id: user.static_id,
             is_admin: user.is_admin === 1
         });
+        
+        await db.promise().query(
+            "INSERT INTO logs (action, user_static_id, details) VALUES (?, ?, ?)",
+            ['login', static_id, 'Вход в систему']
+        );
         
         console.log(`✅ Авторизован: ${static_id}`);
         res.json({ success: true });
@@ -233,6 +296,21 @@ app.get('/api/rooms', async (req, res) => {
     } catch (error) {
         console.error('Get rooms error:', error);
         res.json([]);
+    }
+});
+
+// Получить участников комнаты
+app.get('/api/rooms/:id/members', async (req, res) => {
+    try {
+        const roomId = req.params.id;
+        const [rows] = await db.promise().query(
+            "SELECT user_static_id FROM room_members WHERE room_id = ?",
+            [roomId]
+        );
+        res.json({ members: rows.map(r => r.user_static_id) });
+    } catch (error) {
+        console.error('Get members error:', error);
+        res.json({ members: [] });
     }
 });
 
@@ -304,7 +382,7 @@ app.post('/api/rooms/:id/join', async (req, res) => {
         );
         
         // Оповещаем всех в комнате через WebSocket
-        broadcastToRoom(roomId, {
+        broadcastToRoom(parseInt(roomId), {
             type: 'user_joined',
             userId: user_static_id
         });
@@ -330,7 +408,7 @@ app.post('/api/rooms/:id/leave', async (req, res) => {
         );
         
         // Оповещаем всех в комнате
-        broadcastToRoom(roomId, {
+        broadcastToRoom(parseInt(roomId), {
             type: 'user_left',
             userId: user_static_id
         });
@@ -338,6 +416,23 @@ app.post('/api/rooms/:id/leave', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('Leave room error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Удалить комнату
+app.delete('/api/rooms/:id', async (req, res) => {
+    console.log('📝 Удаление комнаты:', req.params.id);
+    
+    try {
+        const roomId = req.params.id;
+        
+        await db.promise().query("DELETE FROM room_members WHERE room_id = ?", [roomId]);
+        await db.promise().query("DELETE FROM rooms WHERE id = ?", [roomId]);
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete room error:', error);
         res.json({ success: false, error: error.message });
     }
 });
@@ -358,12 +453,143 @@ app.get('/api/checkAdmin', async (req, res) => {
 });
 
 // ============================================
-// СТАТИЧЕСКИЕ ФАЙЛЫ
+// АДМИНИСТРАТИВНЫЕ API
+// ============================================
+
+app.get('/api/admin/logs', async (req, res) => {
+    try {
+        const [rows] = await db.promise().query("SELECT * FROM logs ORDER BY created_at DESC LIMIT 100");
+        res.json(rows);
+    } catch (error) {
+        res.json([]);
+    }
+});
+
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const [rows] = await db.promise().query(`
+            SELECT u.*, 
+            (SELECT COUNT(*) FROM room_members WHERE user_static_id = u.static_id) > 0 as is_online 
+            FROM users u ORDER BY u.created_at DESC
+        `);
+        res.json(rows);
+    } catch (error) {
+        res.json([]);
+    }
+});
+
+app.get('/api/admin/bans', async (req, res) => {
+    try {
+        const [rows] = await db.promise().query("SELECT * FROM ban_list ORDER BY ban_date DESC");
+        res.json(rows);
+    } catch (error) {
+        res.json([]);
+    }
+});
+
+app.get('/api/admin/reports', async (req, res) => {
+    try {
+        const [rows] = await db.promise().query("SELECT * FROM reports ORDER BY created_at DESC");
+        res.json(rows);
+    } catch (error) {
+        res.json([]);
+    }
+});
+
+app.post('/api/admin/reports', async (req, res) => {
+    const { action, report_id } = req.body;
+    
+    try {
+        if (action === 'accept') {
+            await db.promise().query(
+                "UPDATE reports SET status = 'accepted', resolved_at = NOW() WHERE id = ?",
+                [report_id]
+            );
+            res.json({ success: true, message: 'Репорт принят' });
+        } else if (action === 'cancel') {
+            await db.promise().query(
+                "UPDATE reports SET status = 'cancelled', resolved_at = NOW() WHERE id = ?",
+                [report_id]
+            );
+            res.json({ success: true, message: 'Репорт отклонен' });
+        } else {
+            res.json({ success: false, error: 'Неизвестное действие' });
+        }
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/admin/command', async (req, res) => {
+    const { command, admin_id } = req.body;
+    console.log(`📝 Команда от ${admin_id}: ${command}`);
+    
+    try {
+        const [admin] = await db.promise().query("SELECT is_admin FROM users WHERE static_id = ?", [admin_id]);
+        if (admin.length === 0 || !admin[0].is_admin) {
+            return res.json({ success: false, error: 'Нет прав администратора' });
+        }
+        
+        const parts = command.split(' ');
+        const cmd = parts[0].toLowerCase();
+        
+        if (cmd === '/ban' && parts.length >= 4) {
+            const target = parts[1];
+            const days = parseInt(parts[2]);
+            const reason = parts.slice(3).join(' ');
+            const unbanDate = new Date();
+            unbanDate.setDate(unbanDate.getDate() + days);
+            
+            await db.promise().query(
+                "UPDATE users SET is_banned = 1, ban_reason = ?, unban_date = ?, is_admin = 0 WHERE static_id = ?",
+                [reason, unbanDate, target]
+            );
+            
+            await db.promise().query(
+                "INSERT INTO ban_list (user_static_id, banned_by, reason, ban_date, unban_date) VALUES (?, ?, ?, NOW(), ?)",
+                [target, admin_id, reason, unbanDate]
+            );
+            
+            res.json({ success: true, message: `Пользователь ${target} забанен на ${days} дней` });
+        }
+        else if (cmd === '/unban' && parts.length >= 2) {
+            const target = parts[1];
+            
+            await db.promise().query(
+                "UPDATE users SET is_banned = 0, ban_reason = NULL, unban_date = NULL WHERE static_id = ?",
+                [target]
+            );
+            
+            res.json({ success: true, message: `Пользователь ${target} разбанен` });
+        }
+        else if (cmd === '/makeadmin' && parts.length >= 2) {
+            const target = parts[1];
+            
+            await db.promise().query(
+                "UPDATE users SET is_admin = 1 WHERE static_id = ?",
+                [target]
+            );
+            
+            res.json({ success: true, message: `Пользователь ${target} назначен администратором` });
+        }
+        else {
+            res.json({ success: false, error: 'Неизвестная команда. Доступно: /ban, /unban, /makeadmin' });
+        }
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// ============================================
+// СТАТИЧЕСКИЕ ФАЙЛЫ (HTML)
 // ============================================
 app.get('/', (req, res) => { sendHtml(res, 'index.html'); });
+app.get('/index.html', (req, res) => { sendHtml(res, 'index.html'); });
 app.get('/dashboard.html', (req, res) => { sendHtml(res, 'dashboard.html'); });
 app.get('/admin.html', (req, res) => { sendHtml(res, 'admin.html'); });
 app.get('/room.html', (req, res) => { sendHtml(res, 'room.html'); });
+app.get('/login.html', (req, res) => { sendHtml(res, 'login.html'); });
+app.get('/register.html', (req, res) => { sendHtml(res, 'register.html'); });
 app.get('/logout.html', (req, res) => { sendHtml(res, 'logout.html'); });
 app.get('/style.css', (req, res) => { res.sendFile(path.join(__dirname, 'style.css')); });
 app.get('/script.js', (req, res) => { res.sendFile(path.join(__dirname, 'script.js')); });
@@ -373,25 +599,6 @@ app.get('/script.js', (req, res) => { res.sendFile(path.join(__dirname, 'script.
 // ============================================
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
-
-// Функция отправки сообщения всем в комнате
-function broadcastToRoom(roomId, message) {
-    for (let [id, client] of clients.entries()) {
-        if (client.roomId === roomId && client.ws?.readyState === WebSocket.OPEN) {
-            client.ws.send(JSON.stringify(message));
-        }
-    }
-}
-
-// Функция обновления онлайн-счетчика
-function broadcastOnlineCount() {
-    const onlineCount = clients.size;
-    for (let [id, client] of clients.entries()) {
-        if (client.ws?.readyState === WebSocket.OPEN) {
-            client.ws.send(JSON.stringify({ type: 'online_count', count: onlineCount }));
-        }
-    }
-}
 
 wss.on('connection', (ws) => {
     let userStaticId = null;

@@ -225,9 +225,6 @@
         
         [data-theme="dark"] .system-message { background: #1a2a3a; }
         
-        /* ============================================
-           УВЕЛИЧЕННАЯ СТРОКА ВВОДА (на всю ширину)
-        ============================================ */
         .message-input-area {
             display: flex;
             gap: 10px;
@@ -271,27 +268,12 @@
         }
         
         @media (max-width: 768px) {
-            .main-content {
-                flex-direction: column;
-            }
-            .members-sidebar {
-                width: 100%;
-                order: -1;
-            }
-            .room-controls {
-                justify-content: center;
-            }
-            .message-input-area {
-                gap: 8px;
-            }
-            .message-input-area input {
-                padding: 12px 16px;
-                font-size: 14px;
-            }
-            .message-input-area button {
-                padding: 12px 20px;
-                font-size: 14px;
-            }
+            .main-content { flex-direction: column; }
+            .members-sidebar { width: 100%; order: -1; }
+            .room-controls { justify-content: center; }
+            .message-input-area { gap: 8px; }
+            .message-input-area input { padding: 12px 16px; font-size: 14px; }
+            .message-input-area button { padding: 12px 20px; font-size: 14px; }
         }
     </style>
 </head>
@@ -335,7 +317,7 @@
     
     <script>
         // ============================================
-        // НАСТРОЙКИ ДЛЯ МИНИМАЛЬНОЙ ЗАДЕРЖКИ
+        // НАСТРОЙКИ
         // ============================================
         const AUDIO_CONFIG = {
             frameSize: 1024,
@@ -355,7 +337,7 @@
         let isMuted = true;
         let speakersEnabled = true;
         let lastSendTime = 0;
-        let messageId = 0;
+        let lastMessageId = null;
         
         // DOM элементы
         const micBtn = document.getElementById('mic-btn');
@@ -421,7 +403,10 @@
                             if (speakersEnabled && data.audio) playAudio(data.audio);
                             break;
                         case 'text_message':
-                            addMessage(`👤 ${data.from}: ${data.message}`);
+                            // НЕ ПОКАЗЫВАЕМ СВОИ СООБЩЕНИЯ (уже показаны локально)
+                            if (data.from !== userStaticId) {
+                                addMessage(`👤 ${data.from}`, data.message, false);
+                            }
                             break;
                         case 'online_count':
                             document.getElementById('online-count').textContent = data.count;
@@ -577,23 +562,30 @@
         }
         
         // ============================================
-        // ТЕКСТОВЫЙ ЧАТ
+        // ТЕКСТОВЫЙ ЧАТ (БЕЗ ДУБЛЕЙ)
         // ============================================
         function sendMessage() {
             const msg = messageInput.value.trim();
             if (!msg) return;
             if (ws?.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'text_message', message: msg, id: ++messageId }));
-                addMessage(`👤 Вы: ${msg}`);
+                const msgId = Date.now();
+                ws.send(JSON.stringify({ 
+                    type: 'text_message', 
+                    message: msg, 
+                    id: msgId,
+                    from: userStaticId
+                }));
+                // Показываем свое сообщение только один раз (локально)
+                addMessage(`👤 Вы`, msg, true);
                 messageInput.value = '';
                 messageInput.focus();
             }
         }
         
-        function addMessage(text) {
+        function addMessage(sender, text, isMyMessage = false) {
             const div = document.createElement('div');
-            div.className = 'message';
-            div.textContent = text;
+            div.className = 'message' + (isMyMessage ? ' my-message' : '');
+            div.innerHTML = `<strong>${escapeHtml(sender)}:</strong> ${escapeHtml(text)}`;
             messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             while (messagesDiv.children.length > 100) messagesDiv.removeChild(messagesDiv.firstChild);

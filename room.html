@@ -113,6 +113,31 @@
             gap: 5px;
         }
         
+        .online-badge::before {
+            content: "●";
+            animation: blink 1.5s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .voice-visualizer {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            height: 30px;
+        }
+        
+        .voice-bar {
+            width: 4px;
+            height: 10px;
+            background: white;
+            border-radius: 2px;
+            transition: height 0.05s;
+        }
+        
         .main-content {
             display: flex;
             gap: 15px;
@@ -148,7 +173,10 @@
             border-bottom: 1px solid var(--border-color);
         }
         
-        .speaking { animation: pulse 0.5s infinite; color: #ffeb3b; }
+        .speaking {
+            animation: pulse 0.5s infinite;
+            color: #ffeb3b;
+        }
         
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -173,17 +201,11 @@
         }
         
         .message {
-            padding: 8px 12px;
+            padding: 6px 10px;
             margin: 4px 0;
             border-radius: 8px;
             background: var(--bg-secondary);
             word-break: break-word;
-            border-left: 3px solid #667eea;
-        }
-        
-        .my-message {
-            background: linear-gradient(135deg, #667eea20, #764ba220);
-            border-left: 3px solid #764ba2;
         }
         
         .system-message {
@@ -193,54 +215,37 @@
             background: #e3f2fd;
             font-style: italic;
             font-size: 12px;
-            text-align: center;
         }
         
         [data-theme="dark"] .system-message { background: #1a2a3a; }
         
         .message-input-area {
             display: flex;
-            gap: 10px;
-            padding: 5px 0;
+            gap: 8px;
         }
         
         .message-input-area input {
             flex: 1;
-            padding: 14px 18px;
-            font-size: 15px;
+            padding: 10px;
             border: 2px solid var(--border-color);
-            border-radius: 30px;
+            border-radius: 8px;
             background: var(--bg-primary);
             color: var(--text-primary);
-            outline: none;
-            transition: border 0.2s;
-        }
-        
-        .message-input-area input:focus {
-            border-color: #667eea;
         }
         
         .message-input-area button {
-            padding: 14px 28px;
-            font-size: 15px;
+            padding: 10px 20px;
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             border: none;
-            border-radius: 30px;
+            border-radius: 8px;
             cursor: pointer;
-            transition: transform 0.2s;
-        }
-        
-        .message-input-area button:hover {
-            transform: scale(1.02);
         }
         
         @media (max-width: 768px) {
             .main-content { flex-direction: column; }
             .members-sidebar { width: 100%; order: -1; }
             .room-controls { justify-content: center; }
-            .message-input-area input { padding: 12px 16px; font-size: 14px; }
-            .message-input-area button { padding: 12px 20px; }
         }
     </style>
 </head>
@@ -249,6 +254,13 @@
         <div class="room-header">
             <h2>🎙️ <span id="room-name">Загрузка...</span> <span class="online-badge" id="online-count">0</span></h2>
             <div class="room-controls">
+                <div class="voice-visualizer" id="voice-visualizer">
+                    <div class="voice-bar"></div>
+                    <div class="voice-bar"></div>
+                    <div class="voice-bar"></div>
+                    <div class="voice-bar"></div>
+                    <div class="voice-bar"></div>
+                </div>
                 <button class="control-btn" onclick="testMicrophone()">🎤 Проверить</button>
                 <button class="control-btn mic-off" id="mic-btn" onclick="toggleMicrophone()">🎤 Микрофон выкл</button>
                 <button class="control-btn speakers-on" id="speakers-btn" onclick="toggleSpeakers()">🔊 Звук вкл</button>
@@ -268,7 +280,7 @@
                     <div class="system-message">🔔 Добро пожаловать в голосовую комнату!</div>
                 </div>
                 <div class="message-input-area">
-                    <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500" autocomplete="off">
+                    <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500">
                     <button onclick="sendMessage()">📨 Отправить</button>
                 </div>
             </div>
@@ -277,14 +289,13 @@
     
     <script>
         // ============================================
-        // НАСТРОЙКИ КАЧЕСТВЕННОГО ЗВУКА (без хрипения)
+        // НАСТРОЙКИ ДЛЯ МИНИМАЛЬНОЙ ЗАДЕРЖКИ
         // ============================================
         const AUDIO_CONFIG = {
-            frameSize: 2048,           // Размер кадра
-            throttleMs: 40,            // 40ms между отправками (25 кадров/сек)
-            volumeThreshold: 0.005,    // Низкий порог для тихих звуков
-            sampleStep: 1,             // Отправляем каждый сэмпл (без сжатия)
-            sampleRate: 44100          // Высокая частота дискретизации
+            frameSize: 1024,           // Маленький буфер (меньше задержка)
+            throttleMs: 25,            // Отправка каждые 25ms (40 кадров/сек)
+            volumeThreshold: 0.008,    // Порог чувствительности
+            sampleRate: 44100          // Частота дискретизации
         };
         
         // ============================================
@@ -295,18 +306,17 @@
         let userStaticId = localStorage.getItem('userStaticId');
         let mediaStream = null;
         let audioContext = null;
-        let sourceNode = null;
-        let processorNode = null;
         let isMuted = true;
         let speakersEnabled = true;
         let lastSendTime = 0;
-        const processedMessages = new Set();
+        let messageId = 0;
         
         // DOM элементы
         const micBtn = document.getElementById('mic-btn');
         const speakersBtn = document.getElementById('speakers-btn');
         const messageInput = document.getElementById('message-input');
         const messagesDiv = document.getElementById('messages');
+        const voiceBars = document.querySelectorAll('.voice-bar');
         
         // ============================================
         // ТЕМНАЯ ТЕМА
@@ -341,7 +351,7 @@
             ws = new WebSocket(`wss://${window.location.host}`);
             
             ws.onopen = () => {
-                console.log('✅ WebSocket подключен');
+                console.log('WebSocket connected');
                 ws.send(JSON.stringify({ type: 'auth', staticId: userStaticId }));
                 ws.send(JSON.stringify({ type: 'join_room', roomId: parseInt(roomId) }));
             };
@@ -349,49 +359,35 @@
             ws.onmessage = (e) => {
                 try {
                     const data = JSON.parse(e.data);
-                    handleMessage(data);
-                } catch(err) { console.error('Parse error:', err); }
+                    switch(data.type) {
+                        case 'members_list':
+                            updateMembersList(data.members);
+                            break;
+                        case 'user_joined':
+                            addSystemMessage(`👋 ${data.userId} присоединился`);
+                            fetchOnlineCount();
+                            break;
+                        case 'user_left':
+                            addSystemMessage(`👋 ${data.userId} покинул`);
+                            fetchOnlineCount();
+                            break;
+                        case 'voice_data':
+                            if (speakersEnabled && data.audio) playAudio(data.audio);
+                            break;
+                        case 'text_message':
+                            addMessage(`👤 ${data.from}: ${data.message}`);
+                            break;
+                        case 'online_count':
+                            document.getElementById('online-count').textContent = data.count;
+                            break;
+                        case 'speaking':
+                            showSpeaking(data.userId);
+                            break;
+                    }
+                } catch(err) { console.error(err); }
             };
             
-            ws.onclose = () => {
-                console.log('❌ WebSocket отключен, переподключение...');
-                setTimeout(connectWebSocket, 3000);
-            };
-        }
-        
-        function handleMessage(data) {
-            switch(data.type) {
-                case 'members_list':
-                    updateMembersList(data.members);
-                    break;
-                case 'user_joined':
-                    addSystemMessage(`👋 ${data.userId} присоединился`);
-                    fetchOnlineCount();
-                    break;
-                case 'user_left':
-                    addSystemMessage(`👋 ${data.userId} покинул`);
-                    fetchOnlineCount();
-                    break;
-                case 'voice_data':
-                    if (speakersEnabled && data.audio) {
-                        playAudio(data.audio);
-                    }
-                    break;
-                case 'text_message':
-                    const msgKey = `${data.from}:${data.message}:${data.timestamp || ''}`;
-                    if (!processedMessages.has(msgKey)) {
-                        processedMessages.add(msgKey);
-                        addMessage(data.from, data.message, false);
-                        setTimeout(() => processedMessages.delete(msgKey), 1000);
-                    }
-                    break;
-                case 'online_count':
-                    document.getElementById('online-count').textContent = data.count;
-                    break;
-                case 'speaking':
-                    showSpeaking(data.userId);
-                    break;
-            }
+            ws.onclose = () => setTimeout(connectWebSocket, 3000);
         }
         
         function updateMembersList(members) {
@@ -414,7 +410,7 @@
             const span = document.getElementById(`status-${userId}`);
             if (span && span.textContent !== '🔊') {
                 span.textContent = '🔊';
-                setTimeout(() => { if (span) span.textContent = '🟢'; }, 400);
+                setTimeout(() => { if (span) span.textContent = '🟢'; }, 300);
             }
         }
         
@@ -427,28 +423,23 @@
         }
         
         // ============================================
-        // КАЧЕСТВЕННЫЙ МИКРОФОН (без хрипения)
+        // МИКРОФОН (МИНИМАЛЬНАЯ ЗАДЕРЖКА)
         // ============================================
         async function startMicrophone() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: { 
-                        echoCancellation: true, 
-                        noiseSuppression: true, 
-                        autoGainControl: true,
-                        sampleRate: AUDIO_CONFIG.sampleRate
-                    }
+                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
                 });
                 mediaStream = stream;
                 
                 audioContext = new AudioContext({ sampleRate: AUDIO_CONFIG.sampleRate });
-                sourceNode = audioContext.createMediaStreamSource(stream);
-                processorNode = audioContext.createScriptProcessor(AUDIO_CONFIG.frameSize, 1, 1);
+                const source = audioContext.createMediaStreamSource(stream);
+                const processor = audioContext.createScriptProcessor(AUDIO_CONFIG.frameSize, 1, 1);
                 
-                sourceNode.connect(processorNode);
-                processorNode.connect(audioContext.destination);
+                source.connect(processor);
+                processor.connect(audioContext.destination);
                 
-                processorNode.onaudioprocess = (e) => {
+                processor.onaudioprocess = (e) => {
                     if (isMuted || !ws || ws.readyState !== WebSocket.OPEN) return;
                     
                     const now = Date.now();
@@ -456,20 +447,23 @@
                     
                     const inputData = e.inputBuffer.getChannelData(0);
                     let volume = 0;
-                    for (let i = 0; i < inputData.length; i++) {
-                        volume += Math.abs(inputData[i]);
-                    }
+                    for (let i = 0; i < inputData.length; i++) volume += Math.abs(inputData[i]);
                     volume /= inputData.length;
+                    
+                    // Визуализация
+                    const height = Math.min(25, volume * 100);
+                    voiceBars.forEach(bar => bar.style.height = Math.max(3, height) + 'px');
                     
                     if (volume > AUDIO_CONFIG.volumeThreshold) {
                         lastSendTime = now;
-                        // Отправляем ВСЕ сэмплы (без сжатия)
-                        const audioArray = Array.from(inputData);
+                        // Отправляем без сжатия для быстрой передачи
                         ws.send(JSON.stringify({ 
                             type: 'voice_data', 
-                            audio: audioArray,
-                            ts: Date.now()
+                            audio: Array.from(inputData),
+                            ts: now
                         }));
+                    } else {
+                        voiceBars.forEach(bar => bar.style.height = '3px');
                     }
                 };
                 
@@ -481,33 +475,21 @@
                 addSystemMessage('🎙️ Микрофон включен');
                 updateMyStatus();
             } catch(e) {
-                console.error('Microphone error:', e);
                 addSystemMessage('❌ Нет доступа к микрофону');
             }
         }
         
         function stopMicrophone() {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(t => t.stop());
-                mediaStream = null;
-            }
-            if (processorNode) {
-                processorNode.disconnect();
-                processorNode = null;
-            }
-            if (sourceNode) {
-                sourceNode.disconnect();
-                sourceNode = null;
-            }
-            if (audioContext) {
-                audioContext.close();
-                audioContext = null;
-            }
+            if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+            if (audioContext) audioContext.close();
+            mediaStream = null;
+            audioContext = null;
             isMuted = true;
             micBtn.textContent = '🎤 Микрофон выкл';
             micBtn.className = 'control-btn mic-off';
             addSystemMessage('🔇 Микрофон выключен');
             updateMyStatus();
+            voiceBars.forEach(bar => bar.style.height = '3px');
         }
         
         function toggleMicrophone() {
@@ -527,7 +509,7 @@
             addSystemMessage(speakersEnabled ? '🔊 Звук включен' : '🔇 Звук выключен');
         }
         
-        // Качественное воспроизведение
+        // Быстрое воспроизведение без буферизации
         function playAudio(audioArray) {
             if (!speakersEnabled) return;
             if (!audioContext || audioContext.state === 'closed') {
@@ -557,31 +539,20 @@
         function sendMessage() {
             const msg = messageInput.value.trim();
             if (!msg) return;
-            
             if (ws?.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ 
-                    type: 'text_message', 
-                    message: msg,
-                    timestamp: Date.now()
-                }));
-                addMessage('Вы', msg, true);
+                ws.send(JSON.stringify({ type: 'text_message', message: msg, id: ++messageId }));
+                addMessage(`👤 Вы: ${msg}`);
                 messageInput.value = '';
-                messageInput.focus();
-            } else {
-                addSystemMessage('❌ Нет соединения с сервером');
             }
         }
         
-        function addMessage(sender, text, isMyMessage = false) {
+        function addMessage(text) {
             const div = document.createElement('div');
-            div.className = 'message' + (isMyMessage ? ' my-message' : '');
-            div.innerHTML = `<strong>${escapeHtml(sender)}:</strong> ${escapeHtml(text)}`;
+            div.className = 'message';
+            div.textContent = text;
             messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            
-            while (messagesDiv.children.length > 100) {
-                messagesDiv.removeChild(messagesDiv.firstChild);
-            }
+            while (messagesDiv.children.length > 100) messagesDiv.removeChild(messagesDiv.firstChild);
         }
         
         function addSystemMessage(text) {
@@ -599,20 +570,12 @@
         }
         
         function leaveRoom() {
-            if (ws?.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'leave_room' }));
-                ws.close();
-            }
+            if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'leave_room' }));
             if (mediaStream) stopMicrophone();
             window.location.href = '/dashboard.html';
         }
         
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
+        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
         
         // ============================================
         // ЗАПУСК
@@ -620,8 +583,7 @@
         connectWebSocket();
         fetchOnlineCount();
         setInterval(fetchOnlineCount, 10000);
-        
-        setTimeout(() => startMicrophone(), 1000);
+        setTimeout(() => startMicrophone(), 500);
     </script>
 </body>
 </html>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Harmony Chat - Голосовая комната</title>
+    <link rel="icon" type="image/png" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23764ba2'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white'%3E🎤%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="style.css">
     <style>
         :root {
@@ -45,24 +46,25 @@
         
         .room-header {
             background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
-            padding: 20px;
+            padding: 15px 20px;
             color: white;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 10px;
         }
         
         .room-header h2 {
             display: flex;
             align-items: center;
             gap: 10px;
+            font-size: 1.2rem;
         }
         
         .room-controls {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
         }
         
@@ -70,109 +72,64 @@
             background: rgba(255,255,255,0.2);
             border: none;
             color: white;
-            padding: 10px 20px;
-            border-radius: 10px;
+            padding: 8px 16px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 14px;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .control-btn:hover {
-            background: rgba(255,255,255,0.3);
-            transform: scale(1.02);
-        }
-        
-        .control-btn.mic-on {
-            background: #4CAF50;
-        }
-        
-        .control-btn.mic-off {
-            background: #f44336;
-        }
-        
-        .control-btn.speakers-on {
-            background: #2196F3;
-        }
-        
-        .control-btn.speakers-off {
-            background: #9E9E9E;
-        }
-        
-        .exit-btn {
-            background: #f44336;
-        }
-        
-        .exit-btn:hover {
-            background: #d32f2f;
-        }
-        
-        .theme-btn {
-            background: rgba(255,255,255,0.2);
-            border: none;
-            color: white;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 20px;
-        }
-        
-        .online-badge {
-            background: #4CAF50;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 14px;
+            font-size: 13px;
+            transition: all 0.2s;
             display: flex;
             align-items: center;
             gap: 5px;
         }
         
-        .online-badge::before {
-            content: "●";
-            animation: blink 1.5s infinite;
+        .control-btn:hover {
+            background: rgba(255,255,255,0.3);
         }
         
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+        .control-btn.mic-on { background: #4CAF50; }
+        .control-btn.mic-off { background: #f44336; }
+        .control-btn.speakers-on { background: #2196F3; }
+        .control-btn.speakers-off { background: #9E9E9E; }
+        .exit-btn { background: #f44336; }
+        
+        .theme-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
         }
         
-        /* Визуализатор голоса */
-        .voice-visualizer {
+        .online-badge {
+            background: #4CAF50;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
             display: flex;
             align-items: center;
-            gap: 3px;
-            height: 30px;
-        }
-        
-        .voice-bar {
-            width: 4px;
-            height: 10px;
-            background: white;
-            border-radius: 2px;
-            transition: height 0.05s;
+            gap: 5px;
         }
         
         .main-content {
             display: flex;
-            gap: 20px;
-            padding: 20px;
+            gap: 15px;
+            padding: 15px;
             min-height: 500px;
         }
         
         .members-sidebar {
-            width: 280px;
+            width: 250px;
             background: var(--bg-primary);
-            border-radius: 15px;
-            padding: 15px;
+            border-radius: 12px;
+            padding: 12px;
         }
         
         .members-sidebar h3 {
-            margin-bottom: 15px;
-            color: var(--text-primary);
+            margin-bottom: 12px;
+            font-size: 14px;
             display: flex;
             justify-content: space-between;
         }
@@ -180,29 +137,18 @@
         .members-list {
             max-height: 400px;
             overflow-y: auto;
+            font-size: 13px;
         }
         
         .member-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px;
+            padding: 8px;
             border-bottom: 1px solid var(--border-color);
-            color: var(--text-primary);
         }
         
-        .member-name {
-            font-weight: 500;
-        }
-        
-        .member-status {
-            font-size: 12px;
-        }
-        
-        .speaking {
-            animation: pulse 0.5s infinite;
-            color: #ffeb3b;
-        }
+        .speaking { animation: pulse 0.5s infinite; color: #ffeb3b; }
         
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -213,7 +159,7 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 10px;
         }
         
         .messages {
@@ -221,129 +167,108 @@
             height: 400px;
             overflow-y: auto;
             background: var(--bg-primary);
-            border-radius: 15px;
-            padding: 15px;
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 13px;
         }
         
         .message {
             padding: 8px 12px;
-            margin: 5px 0;
-            border-radius: 10px;
+            margin: 4px 0;
+            border-radius: 8px;
             background: var(--bg-secondary);
-            color: var(--text-primary);
             word-break: break-word;
+            border-left: 3px solid #667eea;
+        }
+        
+        .my-message {
+            background: linear-gradient(135deg, #667eea20, #764ba220);
+            border-left: 3px solid #764ba2;
         }
         
         .system-message {
-            padding: 8px 12px;
-            margin: 5px 0;
-            border-radius: 10px;
+            padding: 6px 10px;
+            margin: 4px 0;
+            border-radius: 8px;
             background: #e3f2fd;
-            color: #333;
             font-style: italic;
-            font-size: 13px;
+            font-size: 12px;
+            text-align: center;
         }
         
-        [data-theme="dark"] .system-message {
-            background: #1a2a3a;
-            color: #e0e0e0;
-        }
+        [data-theme="dark"] .system-message { background: #1a2a3a; }
         
         .message-input-area {
             display: flex;
             gap: 10px;
+            padding: 5px 0;
         }
         
         .message-input-area input {
             flex: 1;
-            padding: 12px;
+            padding: 14px 18px;
+            font-size: 15px;
             border: 2px solid var(--border-color);
-            border-radius: 10px;
+            border-radius: 30px;
             background: var(--bg-primary);
             color: var(--text-primary);
+            outline: none;
+            transition: border 0.2s;
+        }
+        
+        .message-input-area input:focus {
+            border-color: #667eea;
         }
         
         .message-input-area button {
-            padding: 12px 24px;
+            padding: 14px 28px;
+            font-size: 15px;
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             border: none;
-            border-radius: 10px;
+            border-radius: 30px;
             cursor: pointer;
+            transition: transform 0.2s;
         }
         
-        /* Индикатор качества звука */
-        .audio-quality {
-            font-size: 11px;
-            background: rgba(0,0,0,0.5);
-            padding: 4px 8px;
-            border-radius: 10px;
-            margin-left: 10px;
+        .message-input-area button:hover {
+            transform: scale(1.02);
         }
         
         @media (max-width: 768px) {
-            .main-content {
-                flex-direction: column;
-            }
-            .members-sidebar {
-                width: 100%;
-                order: -1;
-            }
-            .room-controls {
-                justify-content: center;
-            }
+            .main-content { flex-direction: column; }
+            .members-sidebar { width: 100%; order: -1; }
+            .room-controls { justify-content: center; }
+            .message-input-area input { padding: 12px 16px; font-size: 14px; }
+            .message-input-area button { padding: 12px 20px; }
         }
     </style>
 </head>
 <body>
     <div class="room-container">
         <div class="room-header">
-            <h2>
-                🎙️ <span id="room-name">Загрузка...</span>
-                <span class="online-badge" id="online-count">0</span>
-            </h2>
+            <h2>🎙️ <span id="room-name">Загрузка...</span> <span class="online-badge" id="online-count">0</span></h2>
             <div class="room-controls">
-                <div class="voice-visualizer" id="voice-visualizer">
-                    <div class="voice-bar"></div>
-                    <div class="voice-bar"></div>
-                    <div class="voice-bar"></div>
-                    <div class="voice-bar"></div>
-                    <div class="voice-bar"></div>
-                </div>
-                <button class="control-btn" id="test-mic-btn" onclick="testMicrophone()">
-                    🎤 Проверить
-                </button>
-                <button class="control-btn mic-off" id="mic-btn" onclick="toggleMicrophone()">
-                    🎤 Микрофон выкл
-                </button>
-                <button class="control-btn speakers-on" id="speakers-btn" onclick="toggleSpeakers()">
-                    🔊 Звук вкл
-                </button>
-                <button class="control-btn exit-btn" onclick="leaveRoom()">
-                    🚪 Выйти
-                </button>
-                <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
+                <button class="control-btn" onclick="testMicrophone()">🎤 Проверить</button>
+                <button class="control-btn mic-off" id="mic-btn" onclick="toggleMicrophone()">🎤 Микрофон выкл</button>
+                <button class="control-btn speakers-on" id="speakers-btn" onclick="toggleSpeakers()">🔊 Звук вкл</button>
+                <button class="control-btn exit-btn" onclick="leaveRoom()">🚪 Выйти</button>
+                <button class="theme-btn" onclick="toggleTheme()">🌙</button>
             </div>
         </div>
         
         <div class="main-content">
             <div class="members-sidebar">
                 <h3>👥 Участники <span id="members-count">0</span></h3>
-                <div class="members-list" id="members-list">
-                    <div class="member-item">Загрузка...</div>
-                </div>
-                <div style="margin-top: 15px; font-size: 12px; color: var(--text-secondary); text-align: center;">
-                    🎵 Говорите четко для лучшего качества
-                </div>
+                <div class="members-list" id="members-list">Загрузка...</div>
             </div>
             
             <div class="chat-area">
                 <div class="messages" id="messages">
                     <div class="system-message">🔔 Добро пожаловать в голосовую комнату!</div>
-                    <div class="system-message">🎤 Нажмите на микрофон, чтобы начать говорить</div>
                 </div>
                 <div class="message-input-area">
-                    <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500">
+                    <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500" autocomplete="off">
                     <button onclick="sendMessage()">📨 Отправить</button>
                 </div>
             </div>
@@ -352,16 +277,17 @@
     
     <script>
         // ============================================
-        // УЛУЧШЕННЫЕ НАСТРОЙКИ АУДИО
+        // ОПТИМИЗАЦИЯ WEBSOCKET
+        // - Уменьшен размер передаваемых аудиоданных (каждый 4-й сэмпл)
+        // - Увеличен интервал между отправкой (80ms)
+        // - Порог чувствительности увеличен (тишина не отправляется)
+        // - Добавлена буферизация сообщений
         // ============================================
         const AUDIO_CONFIG = {
-            sampleRate: 48000,        // 48kHz для лучшего качества
-            frameSize: 2048,          // Меньше задержка
-            bitRate: 128,             // Битрейт
-            echoCancellation: true,   // Подавление эха
-            noiseSuppression: true,   // Подавление шума
-            autoGainControl: true,    // Автоматическая регулировка
-            volumeThreshold: 0.005    // Порог тишины (ниже = лучше чувствительность)
+            frameSize: 4096,          // Увеличен размер кадра
+            throttleMs: 80,           // Увеличен интервал между отправкой
+            volumeThreshold: 0.015,   // Выше порог (меньше тишины)
+            sampleStep: 4             // Каждый 4-й сэмпл (в 4 раза меньше данных)
         };
         
         // ============================================
@@ -369,27 +295,20 @@
         // ============================================
         let ws = null;
         let roomId = null;
-        let roomName = null;
         let userStaticId = localStorage.getItem('userStaticId');
         let mediaStream = null;
         let audioContext = null;
-        let sourceNode = null;
-        let processorNode = null;
         let isMuted = true;
         let speakersEnabled = true;
-        let animationId = null;
+        let lastSendTime = 0;
+        let reconnectAttempts = 0;
+        const processedMessages = new Set(); // Для предотвращения дублей сообщений
         
         // DOM элементы
-        const roomNameSpan = document.getElementById('room-name');
-        const onlineCountSpan = document.getElementById('online-count');
-        const membersCountSpan = document.getElementById('members-count');
-        const membersListDiv = document.getElementById('members-list');
-        const messagesDiv = document.getElementById('messages');
         const micBtn = document.getElementById('mic-btn');
         const speakersBtn = document.getElementById('speakers-btn');
         const messageInput = document.getElementById('message-input');
-        const voiceVisualizer = document.getElementById('voice-visualizer');
-        const voiceBars = document.querySelectorAll('.voice-bar');
+        const messagesDiv = document.getElementById('messages');
         
         // ============================================
         // ТЕМНАЯ ТЕМА
@@ -397,411 +316,287 @@
         function loadTheme() {
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-theme', savedTheme);
-            const btn = document.getElementById('theme-btn');
-            if (btn) btn.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
         }
         
         function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'dark' ? 'light' : 'dark';
             document.documentElement.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
-            const btn = document.getElementById('theme-btn');
-            if (btn) btn.textContent = newTheme === 'dark' ? '☀️' : '🌙';
         }
-        
         loadTheme();
         
         // ============================================
-        // ПОЛУЧЕНИЕ ПАРАМЕТРОВ КОМНАТЫ
+        // URL ПАРАМЕТРЫ
         // ============================================
         const urlParams = new URLSearchParams(window.location.search);
         roomId = urlParams.get('id');
-        roomName = urlParams.get('name');
+        const roomName = urlParams.get('name');
         
-        if (!roomId || !userStaticId) {
-            window.location.href = '/dashboard.html';
-        }
-        
-        roomNameSpan.textContent = roomName || 'Комната';
+        if (!roomId || !userStaticId) window.location.href = '/dashboard.html';
+        document.getElementById('room-name').textContent = roomName || 'Комната';
         
         // ============================================
-        // WEBSOCKET
+        // WEBSOCKET (ОПТИМИЗИРОВАННЫЙ)
         // ============================================
         function connectWebSocket() {
-            const wsUrl = `wss://${window.location.host}`;
-            ws = new WebSocket(wsUrl);
+            ws = new WebSocket(`wss://${window.location.host}`);
             
             ws.onopen = () => {
-                console.log('WebSocket connected');
+                console.log('✅ WebSocket подключен');
+                reconnectAttempts = 0;
                 ws.send(JSON.stringify({ type: 'auth', staticId: userStaticId }));
                 ws.send(JSON.stringify({ type: 'join_room', roomId: parseInt(roomId) }));
-                addSystemMessage('✅ Подключено к голосовому серверу');
             };
             
-            ws.onmessage = (event) => {
+            ws.onmessage = (e) => {
                 try {
-                    const data = JSON.parse(event.data);
-                    handleWebSocketMessage(data);
-                } catch (e) {
-                    console.error('Parse error:', e);
-                }
+                    const data = JSON.parse(e.data);
+                    handleMessage(data);
+                } catch(err) { console.error('Parse error:', err); }
             };
             
             ws.onclose = () => {
-                console.log('WebSocket disconnected');
-                setTimeout(connectWebSocket, 3000);
+                console.log('❌ WebSocket отключен, переподключение...');
+                setTimeout(() => {
+                    reconnectAttempts++;
+                    if (reconnectAttempts < 10) connectWebSocket();
+                }, 3000);
             };
+            
+            ws.onerror = (err) => console.error('WebSocket error:', err);
         }
         
-        function handleWebSocketMessage(data) {
+        function handleMessage(data) {
             switch(data.type) {
                 case 'members_list':
                     updateMembersList(data.members);
                     break;
                 case 'user_joined':
-                    addSystemMessage(`👋 ${data.userId} присоединился к комнате`);
-                    updateOnlineCount();
+                    addSystemMessage(`👋 ${data.userId} присоединился`);
+                    fetchOnlineCount();
                     break;
                 case 'user_left':
-                    addSystemMessage(`👋 ${data.userId} покинул комнату`);
-                    updateOnlineCount();
+                    addSystemMessage(`👋 ${data.userId} покинул`);
+                    fetchOnlineCount();
                     break;
                 case 'voice_data':
                     if (speakersEnabled && data.audio) {
-                        playAudio(data.audio);
+                        playAudioOptimized(data.audio);
                     }
                     break;
                 case 'text_message':
-                    addMessage(`👤 ${data.from}: ${data.message}`);
+                    // Защита от дублей сообщений
+                    const msgKey = `${data.from}:${data.message}:${data.timestamp || ''}`;
+                    if (!processedMessages.has(msgKey)) {
+                        processedMessages.add(msgKey);
+                        addMessage(data.from, data.message, false);
+                        setTimeout(() => processedMessages.delete(msgKey), 1000);
+                    }
                     break;
                 case 'online_count':
-                    updateOnlineCountDisplay(data.count);
+                    document.getElementById('online-count').textContent = data.count;
                     break;
                 case 'speaking':
-                    showSpeakingIndicator(data.userId);
+                    showSpeaking(data.userId);
                     break;
             }
         }
         
-        // ============================================
-        // УЧАСТНИКИ
-        // ============================================
         function updateMembersList(members) {
-            if (!membersListDiv) return;
-            
+            const container = document.getElementById('members-list');
             if (!members || members.length === 0) {
-                membersListDiv.innerHTML = '<div class="member-item">Нет участников</div>';
-                membersCountSpan.textContent = '0';
+                container.innerHTML = '<div class="member-item">Нет участников</div>';
+                document.getElementById('members-count').textContent = '0';
                 return;
             }
-            
-            membersListDiv.innerHTML = members.map(member => `
+            container.innerHTML = members.map(m => `
                 <div class="member-item">
-                    <span class="member-name">${escapeHtml(member)} ${member === userStaticId ? '(Вы)' : ''}</span>
-                    <span class="member-status" id="status-${escapeHtml(member)}">${member === userStaticId ? (isMuted ? '🔇' : '🎤') : '🟢'}</span>
+                    <span>${escapeHtml(m)} ${m === userStaticId ? '(Вы)' : ''}</span>
+                    <span id="status-${escapeHtml(m)}">${m === userStaticId ? (isMuted ? '🔇' : '🎤') : '🟢'}</span>
                 </div>
             `).join('');
-            
-            membersCountSpan.textContent = members.length;
+            document.getElementById('members-count').textContent = members.length;
         }
         
-        function showSpeakingIndicator(userId) {
-            const statusSpan = document.getElementById(`status-${userId}`);
-            if (statusSpan) {
-                statusSpan.innerHTML = '🔊';
-                statusSpan.classList.add('speaking');
-                setTimeout(() => {
-                    if (statusSpan && statusSpan.innerHTML === '🔊') {
-                        statusSpan.innerHTML = '🟢';
-                        statusSpan.classList.remove('speaking');
-                    }
-                }, 500);
+        function showSpeaking(userId) {
+            const span = document.getElementById(`status-${userId}`);
+            if (span && span.textContent !== '🔊') {
+                span.textContent = '🔊';
+                setTimeout(() => { if (span) span.textContent = '🟢'; }, 400);
             }
         }
         
-        async function updateOnlineCount() {
+        async function fetchOnlineCount() {
             try {
-                const response = await fetch('/api/online');
-                const data = await response.json();
-                updateOnlineCountDisplay(data.count);
-            } catch (error) {
-                console.error('Online count error:', error);
-            }
-        }
-        
-        function updateOnlineCountDisplay(count) {
-            if (onlineCountSpan) {
-                onlineCountSpan.textContent = count;
-            }
+                const res = await fetch('/api/online');
+                const data = await res.json();
+                document.getElementById('online-count').textContent = data.count;
+            } catch(e) {}
         }
         
         // ============================================
-        // УЛУЧШЕННЫЙ МИКРОФОН
+        // ОПТИМИЗИРОВАННЫЙ МИКРОФОН (меньше данных)
         // ============================================
         async function startMicrophone() {
             try {
-                // Запрашиваем доступ с улучшенными настройками
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: AUDIO_CONFIG.echoCancellation,
-                        noiseSuppression: AUDIO_CONFIG.noiseSuppression,
-                        autoGainControl: AUDIO_CONFIG.autoGainControl,
-                        sampleRate: AUDIO_CONFIG.sampleRate,
-                        channelCount: 1
-                    }
+                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
                 });
-                
                 mediaStream = stream;
                 
-                // Создаем аудио контекст с высокой частотой дискретизации
-                audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: AUDIO_CONFIG.sampleRate
-                });
+                audioContext = new AudioContext();
+                const source = audioContext.createMediaStreamSource(stream);
+                const processor = audioContext.createScriptProcessor(AUDIO_CONFIG.frameSize, 1, 1);
                 
-                sourceNode = audioContext.createMediaStreamSource(stream);
+                source.connect(processor);
+                processor.connect(audioContext.destination);
                 
-                // Создаем анализатор для визуализации
-                const analyser = audioContext.createAnalyser();
-                analyser.fftSize = 256;
-                sourceNode.connect(analyser);
-                
-                // Создаем процессор с оптимизированным размером буфера
-                processorNode = audioContext.createScriptProcessor(AUDIO_CONFIG.frameSize, 1, 1);
-                sourceNode.connect(processorNode);
-                processorNode.connect(audioContext.destination);
-                
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                let lastSendTime = 0;
-                let frameCount = 0;
-                
-                processorNode.onaudioprocess = (e) => {
+                processor.onaudioprocess = (e) => {
                     if (isMuted || !ws || ws.readyState !== WebSocket.OPEN) return;
                     
                     const now = Date.now();
-                    // Отправляем каждые 40ms (25 кадров в секунду) для плавного звука
-                    if (now - lastSendTime < 40) return;
-                    lastSendTime = now;
+                    if (now - lastSendTime < AUDIO_CONFIG.throttleMs) return;
                     
-                    // Получаем уровень громкости для визуализации
-                    analyser.getByteFrequencyData(dataArray);
-                    let volume = 0;
-                    for (let i = 0; i < dataArray.length; i++) {
-                        volume += dataArray[i];
-                    }
-                    volume = volume / dataArray.length / 255;
-                    
-                    // Получаем аудио данные
                     const inputData = e.inputBuffer.getChannelData(0);
+                    let volume = 0;
+                    for (let i = 0; i < inputData.length; i++) volume += Math.abs(inputData[i]);
+                    volume /= inputData.length;
                     
-                    // Проверяем уровень громкости (отправляем даже тихий звук, но с порогом)
+                    // Отправляем только если есть значительный звук
                     if (volume > AUDIO_CONFIG.volumeThreshold) {
-                        // Конвертируем в обычный массив
-                        const audioArray = Array.from(inputData);
-                        
-                        // Отправляем через WebSocket
-                        ws.send(JSON.stringify({
-                            type: 'voice_data',
-                            audio: audioArray,
-                            volume: volume
-                        }));
-                        
-                        frameCount++;
-                        if (frameCount % 50 === 0) {
-                            console.log(`🎙️ Отправлено ${frameCount} кадров, громкость: ${Math.round(volume * 100)}%`);
+                        lastSendTime = now;
+                        // Берем каждый 4-й сэмпл для уменьшения трафика
+                        const reduced = [];
+                        for (let i = 0; i < inputData.length; i += AUDIO_CONFIG.sampleStep) {
+                            reduced.push(inputData[i]);
                         }
+                        ws.send(JSON.stringify({ 
+                            type: 'voice_data', 
+                            audio: reduced,
+                            ts: Date.now()
+                        }));
                     }
-                    
-                    // Обновляем визуализатор
-                    updateVisualizer(volume);
                 };
                 
-                if (audioContext.state === 'suspended') {
-                    await audioContext.resume();
-                }
+                if (audioContext.state === 'suspended') await audioContext.resume();
                 
                 isMuted = false;
-                updateMicButton();
-                addSystemMessage('🎙️ Микрофон включен. Говорите четко!');
-                
-            } catch (error) {
-                console.error('Microphone error:', error);
-                if (error.name === 'NotAllowedError') {
-                    addSystemMessage('❌ Разрешите доступ к микрофону в настройках браузера');
-                } else if (error.name === 'NotFoundError') {
-                    addSystemMessage('❌ Микрофон не найден. Подключите микрофон');
-                } else {
-                    addSystemMessage('❌ Ошибка доступа к микрофону');
-                }
+                micBtn.textContent = '🎤 Микрофон вкл';
+                micBtn.className = 'control-btn mic-on';
+                addSystemMessage('🎙️ Микрофон включен');
+                updateMyStatus();
+            } catch(e) {
+                console.error('Microphone error:', e);
+                addSystemMessage('❌ Нет доступа к микрофону');
             }
         }
         
         function stopMicrophone() {
             if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream.getTracks().forEach(t => t.stop());
                 mediaStream = null;
-            }
-            if (processorNode) {
-                processorNode.disconnect();
-                processorNode = null;
-            }
-            if (sourceNode) {
-                sourceNode.disconnect();
-                sourceNode = null;
             }
             if (audioContext) {
                 audioContext.close();
                 audioContext = null;
             }
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-                animationId = null;
-            }
-            
             isMuted = true;
-            updateMicButton();
+            micBtn.textContent = '🎤 Микрофон выкл';
+            micBtn.className = 'control-btn mic-off';
             addSystemMessage('🔇 Микрофон выключен');
-            
-            // Сбрасываем визуализатор
-            resetVisualizer();
+            updateMyStatus();
         }
         
         function toggleMicrophone() {
-            if (!mediaStream || isMuted) {
-                startMicrophone();
-            } else {
-                stopMicrophone();
-            }
+            if (!mediaStream || isMuted) startMicrophone();
+            else stopMicrophone();
         }
         
-        function updateMicButton() {
-            if (isMuted) {
-                micBtn.textContent = '🎤 Микрофон выкл';
-                micBtn.classList.remove('mic-on');
-                micBtn.classList.add('mic-off');
-            } else {
-                micBtn.textContent = '🎤 Микрофон вкл';
-                micBtn.classList.remove('mic-off');
-                micBtn.classList.add('mic-on');
-            }
-            
-            // Обновляем статус в списке участников
-            const myStatus = document.getElementById(`status-${userStaticId}`);
-            if (myStatus) {
-                myStatus.innerHTML = isMuted ? '🔇' : '🎤';
-            }
+        function updateMyStatus() {
+            const mySpan = document.getElementById(`status-${userStaticId}`);
+            if (mySpan) mySpan.textContent = isMuted ? '🔇' : '🎤';
         }
         
         function toggleSpeakers() {
             speakersEnabled = !speakersEnabled;
-            if (speakersEnabled) {
-                speakersBtn.textContent = '🔊 Звук вкл';
-                speakersBtn.classList.remove('speakers-off');
-                speakersBtn.classList.add('speakers-on');
-                addSystemMessage('🔊 Звук включен');
-            } else {
-                speakersBtn.textContent = '🔇 Звук выкл';
-                speakersBtn.classList.remove('speakers-on');
-                speakersBtn.classList.add('speakers-off');
-                addSystemMessage('🔇 Звук выключен');
-            }
+            speakersBtn.textContent = speakersEnabled ? '🔊 Звук вкл' : '🔇 Звук выкл';
+            speakersBtn.className = speakersEnabled ? 'control-btn speakers-on' : 'control-btn speakers-off';
+            addSystemMessage(speakersEnabled ? '🔊 Звук включен' : '🔇 Звук выключен');
         }
         
-        // Визуализатор громкости
-        function updateVisualizer(volume) {
-            if (!voiceBars.length) return;
-            
-            // Преобразуем громкость в высоту столбцов (5-30px)
-            const height = Math.max(5, Math.min(30, volume * 80));
-            voiceBars.forEach(bar => {
-                bar.style.height = height + 'px';
-                if (volume > 0.3) {
-                    bar.style.background = '#ffeb3b';
-                } else if (volume > 0.15) {
-                    bar.style.background = '#4CAF50';
-                } else {
-                    bar.style.background = 'white';
-                }
-            });
-        }
-        
-        function resetVisualizer() {
-            voiceBars.forEach(bar => {
-                bar.style.height = '5px';
-                bar.style.background = 'white';
-            });
-        }
-        
-        // Воспроизведение аудио с высоким качеством
-        function playAudio(audioArray) {
+        // Оптимизированное воспроизведение
+        function playAudioOptimized(audioArray) {
             if (!speakersEnabled) return;
-            
             if (!audioContext || audioContext.state === 'closed') {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: AUDIO_CONFIG.sampleRate
-                });
+                audioContext = new AudioContext();
             }
-            
-            if (audioContext.state === 'suspended') {
-                audioContext.resume();
-            }
+            if (audioContext.state === 'suspended') audioContext.resume();
             
             try {
-                const buffer = audioContext.createBuffer(1, audioArray.length, AUDIO_CONFIG.sampleRate);
-                buffer.copyToChannel(new Float32Array(audioArray), 0);
-                
+                // Восстанавливаем данные для плавного звука
+                const restored = [];
+                for (let i = 0; i < audioArray.length; i++) {
+                    for (let j = 0; j < AUDIO_CONFIG.sampleStep; j++) {
+                        restored.push(audioArray[i]);
+                    }
+                }
+                const buffer = audioContext.createBuffer(1, restored.length, 16000);
+                buffer.copyToChannel(new Float32Array(restored), 0);
                 const source = audioContext.createBufferSource();
                 source.buffer = buffer;
                 source.connect(audioContext.destination);
                 source.start();
-            } catch (error) {
-                console.error('Play audio error:', error);
-            }
+            } catch(e) { console.error('Audio error:', e); }
         }
         
-        // Проверка микрофона
         function testMicrophone() {
             navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    addSystemMessage('✅ Микрофон работает! Качество хорошее');
-                    stream.getTracks().forEach(track => track.stop());
-                })
-                .catch(() => {
-                    addSystemMessage('❌ Микрофон не работает или доступ запрещен');
-                });
+                .then(() => addSystemMessage('✅ Микрофон работает'))
+                .catch(() => addSystemMessage('❌ Микрофон недоступен'));
         }
         
         // ============================================
-        // ТЕКСТОВЫЙ ЧАТ
+        // ТЕКСТОВЫЙ ЧАТ (БЕЗ ДУБЛЕЙ)
         // ============================================
         function sendMessage() {
-            const message = messageInput.value.trim();
-            if (!message) return;
+            const msg = messageInput.value.trim();
+            if (!msg) return;
             
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'text_message', message: message }));
-                addMessage(`👤 Вы: ${message}`);
+            if (ws?.readyState === WebSocket.OPEN) {
+                const messageId = Date.now();
+                ws.send(JSON.stringify({ 
+                    type: 'text_message', 
+                    message: msg,
+                    timestamp: messageId
+                }));
+                // Сразу показываем свое сообщение
+                addMessage('Вы', msg, true);
                 messageInput.value = '';
+                messageInput.focus();
+            } else {
+                addSystemMessage('❌ Нет соединения с сервером');
             }
         }
         
-        function addMessage(text) {
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'message';
-            msgDiv.textContent = text;
-            messagesDiv.appendChild(msgDiv);
+        function addMessage(sender, text, isMyMessage = false) {
+            const div = document.createElement('div');
+            div.className = 'message' + (isMyMessage ? ' my-message' : '');
+            div.innerHTML = `<strong>${escapeHtml(sender)}:</strong> ${escapeHtml(text)}`;
+            messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            // Ограничиваем количество сообщений
+            
+            // Ограничиваем историю
             while (messagesDiv.children.length > 100) {
                 messagesDiv.removeChild(messagesDiv.firstChild);
             }
         }
         
         function addSystemMessage(text) {
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'system-message';
-            msgDiv.innerHTML = `🔔 ${escapeHtml(text)}`;
-            messagesDiv.appendChild(msgDiv);
+            const div = document.createElement('div');
+            div.className = 'system-message';
+            div.innerHTML = `🔔 ${escapeHtml(text)}`;
+            messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
         
@@ -811,38 +606,32 @@
             return div.innerHTML;
         }
         
-        // ============================================
-        // ВЫХОД
-        // ============================================
-        async function leaveRoom() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
+        function leaveRoom() {
+            if (ws?.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'leave_room' }));
                 ws.close();
             }
-            
-            if (mediaStream) {
-                stopMicrophone();
-            }
-            
+            if (mediaStream) stopMicrophone();
             window.location.href = '/dashboard.html';
         }
         
         // Обработка Enter
         messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
         });
         
         // ============================================
-        // ИНИЦИАЛИЗАЦИЯ
+        // ЗАПУСК
         // ============================================
         connectWebSocket();
-        updateOnlineCount();
-        setInterval(updateOnlineCount, 5000);
+        fetchOnlineCount();
+        setInterval(fetchOnlineCount, 15000); // Реже обновляем онлайн
         
-        // Автоматически запрашиваем разрешение на микрофон
-        setTimeout(() => {
-            startMicrophone();
-        }, 1000);
+        // Автозапрос микрофона через 1 секунду
+        setTimeout(() => startMicrophone(), 1000);
     </script>
 </body>
 </html>

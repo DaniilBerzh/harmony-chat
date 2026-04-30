@@ -1,1 +1,436 @@
-
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Harmony Chat - Текстовая комната</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23764ba2'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white'%3E💬%3C/text%3E%3C/svg%3E">
+    <style>
+        :root {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #dddddd;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --gradient-start: #667eea;
+            --gradient-end: #764ba2;
+        }
+        [data-theme="dark"] {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --border-color: #404040;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .room-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        
+        .room-header {
+            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            padding: 15px 20px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .room-header h2 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.2rem;
+        }
+        
+        .room-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .control-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .control-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .exit-btn { background: #f44336; }
+        .theme-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        
+        .online-badge {
+            background: #4CAF50;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .online-badge::before {
+            content: "●";
+            animation: blink 1.5s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .main-content {
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            min-height: 500px;
+        }
+        
+        .members-sidebar {
+            width: 250px;
+            background: var(--bg-primary);
+            border-radius: 12px;
+            padding: 12px;
+        }
+        
+        .members-sidebar h3 {
+            margin-bottom: 12px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .members-list {
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 13px;
+        }
+        
+        .member-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+        
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .messages {
+            flex: 1;
+            height: 400px;
+            overflow-y: auto;
+            background: var(--bg-primary);
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 13px;
+        }
+        
+        .message {
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            word-break: break-word;
+            border-left: 3px solid #667eea;
+        }
+        
+        .my-message {
+            background: linear-gradient(135deg, #667eea20, #764ba220);
+            border-left: 3px solid #764ba2;
+        }
+        
+        .system-message {
+            padding: 6px 10px;
+            margin: 4px 0;
+            border-radius: 8px;
+            background: #e3f2fd;
+            font-style: italic;
+            font-size: 12px;
+            text-align: center;
+        }
+        
+        [data-theme="dark"] .system-message { background: #1a2a3a; }
+        
+        .message-input-area {
+            display: flex;
+            gap: 10px;
+            padding: 10px 0;
+            width: 100%;
+        }
+        
+        .message-input-area input {
+            flex: 1;
+            padding: 14px 20px;
+            font-size: 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 30px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            outline: none;
+            transition: all 0.3s;
+        }
+        
+        .message-input-area input:focus {
+            border-color: var(--gradient-start);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+        
+        .message-input-area button {
+            padding: 14px 30px;
+            font-size: 16px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        
+        .message-input-area button:hover {
+            transform: scale(1.02);
+        }
+        
+        @media (max-width: 768px) {
+            .main-content { flex-direction: column; }
+            .members-sidebar { width: 100%; order: -1; }
+            .room-controls { justify-content: center; }
+            .message-input-area input { padding: 12px 16px; font-size: 14px; }
+            .message-input-area button { padding: 12px 20px; font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="room-container">
+        <div class="room-header">
+            <h2>💬 <span id="room-name">Загрузка...</span> <span class="online-badge" id="online-count">0</span></h2>
+            <div class="room-controls">
+                <button class="control-btn exit-btn" onclick="leaveRoom()">🚪 Покинуть комнату</button>
+                <button class="theme-btn" onclick="toggleTheme()">🌙</button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="members-sidebar">
+                <h3>👥 Участники <span id="members-count">0</span></h3>
+                <div class="members-list" id="members-list">Загрузка...</div>
+            </div>
+            
+            <div class="chat-area">
+                <div class="messages" id="messages">
+                    <div class="system-message">🔔 Добро пожаловать в текстовую комнату!</div>
+                </div>
+                <div class="message-input-area">
+                    <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500" autocomplete="off">
+                    <button onclick="sendMessage()">📨 Отправить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ============================================
+        // ПЕРЕМЕННЫЕ
+        // ============================================
+        let ws = null;
+        let roomId = null;
+        let userStaticId = localStorage.getItem('userStaticId');
+        
+        // DOM элементы
+        const messageInput = document.getElementById('message-input');
+        const messagesDiv = document.getElementById('messages');
+        
+        // ============================================
+        // ТЕМНАЯ ТЕМА
+        // ============================================
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+        
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+        loadTheme();
+        
+        // ============================================
+        // URL ПАРАМЕТРЫ
+        // ============================================
+        const urlParams = new URLSearchParams(window.location.search);
+        roomId = urlParams.get('id');
+        const roomName = urlParams.get('name');
+        
+        if (!roomId || !userStaticId) window.location.href = '/dashboard.html';
+        document.getElementById('room-name').textContent = roomName || 'Комната';
+        
+        // ============================================
+        // WEBSOCKET
+        // ============================================
+        function connectWebSocket() {
+            ws = new WebSocket(`wss://${window.location.host}`);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                ws.send(JSON.stringify({ type: 'auth', staticId: userStaticId }));
+                ws.send(JSON.stringify({ type: 'join_room', roomId: parseInt(roomId) }));
+            };
+            
+            ws.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    switch(data.type) {
+                        case 'members_list':
+                            updateMembersList(data.members);
+                            break;
+                        case 'user_joined':
+                            addSystemMessage(`👋 ${data.userId} присоединился`);
+                            fetchOnlineCount();
+                            break;
+                        case 'user_left':
+                            addSystemMessage(`👋 ${data.userId} покинул`);
+                            fetchOnlineCount();
+                            break;
+                        case 'text_message':
+                            if (data.from !== userStaticId) {
+                                addMessage(`👤 ${data.from}`, data.message, false);
+                            }
+                            break;
+                        case 'online_count':
+                            document.getElementById('online-count').textContent = data.count;
+                            break;
+                    }
+                } catch(err) { console.error(err); }
+            };
+            
+            ws.onclose = () => setTimeout(connectWebSocket, 3000);
+        }
+        
+        function updateMembersList(members) {
+            const container = document.getElementById('members-list');
+            if (!members || members.length === 0) {
+                container.innerHTML = '<div class="member-item">Нет участников</div>';
+                document.getElementById('members-count').textContent = '0';
+                return;
+            }
+            container.innerHTML = members.map(m => `
+                <div class="member-item">
+                    <span>${escapeHtml(m)} ${m === userStaticId ? '(Вы)' : ''}</span>
+                </div>
+            `).join('');
+            document.getElementById('members-count').textContent = members.length;
+        }
+        
+        async function fetchOnlineCount() {
+            try {
+                const res = await fetch('/api/online');
+                const data = await res.json();
+                document.getElementById('online-count').textContent = data.count;
+            } catch(e) {}
+        }
+        
+        // ============================================
+        // ТЕКСТОВЫЙ ЧАТ
+        // ============================================
+        function sendMessage() {
+            const msg = messageInput.value.trim();
+            if (!msg) return;
+            if (ws?.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'text_message', message: msg, from: userStaticId }));
+                addMessage(`👤 Вы`, msg, true);
+                messageInput.value = '';
+                messageInput.focus();
+            }
+        }
+        
+        function addMessage(sender, text, isMyMessage = false) {
+            const div = document.createElement('div');
+            div.className = 'message' + (isMyMessage ? ' my-message' : '');
+            div.innerHTML = `<strong>${escapeHtml(sender)}:</strong> ${escapeHtml(text)}`;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            while (messagesDiv.children.length > 100) messagesDiv.removeChild(messagesDiv.firstChild);
+        }
+        
+        function addSystemMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'system-message';
+            div.innerHTML = `🔔 ${escapeHtml(text)}`;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function leaveRoom() {
+            if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'leave_room' }));
+            window.location.href = '/dashboard.html';
+        }
+        
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        // ============================================
+        // ЗАПУСК
+        // ============================================
+        connectWebSocket();
+        fetchOnlineCount();
+        setInterval(fetchOnlineCount, 10000);
+    </script>
+</body>
+</html>

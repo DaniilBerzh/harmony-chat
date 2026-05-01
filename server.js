@@ -58,14 +58,14 @@ function sendHtml(res, filename) {
 }
 
 // ============================================
-// ИНИЦИАЛИЗАЦИЯ БД (с проверкой и добавлением колонок)
+// ИНИЦИАЛИЗАЦИЯ БД
 // ============================================
 
 async function initDatabase() {
     try {
         const conn = await db.promise().getConnection();
         
-        // Проверяем и добавляем колонки для таблицы users
+        // Таблица пользователей
         await conn.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -80,14 +80,6 @@ async function initDatabase() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
-        
-        // Добавляем колонки если их нет (для безопасности)
-        try {
-            await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT`);
-            await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS unban_date DATETIME`);
-            await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE`);
-            await conn.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE`);
-        } catch(e) { console.log('Колонки уже существуют'); }
         
         // Таблица комнат
         await conn.query(`
@@ -263,12 +255,6 @@ app.post('/api/login', async (req, res) => {
         }
         
         const user = rows[0];
-        
-        // Проверка бана
-        if (user.is_banned && user.unban_date && new Date(user.unban_date) > new Date()) {
-            return res.json({ success: false, error: `Вы забанены до ${new Date(user.unban_date).toLocaleString()}` });
-        }
-        
         const password_hash = crypto.createHash('sha256').update(password).digest('hex');
         
         if (user.password_hash !== password_hash) {

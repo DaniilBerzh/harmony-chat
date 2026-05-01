@@ -738,6 +738,9 @@ app.get('/dashboard.html', (req, res) => { sendHtml(res, 'dashboard.html'); });
 app.get('/admin.html', (req, res) => { sendHtml(res, 'admin.html'); });
 app.get('/room.html', (req, res) => { sendHtml(res, 'room.html'); });
 app.get('/logout.html', (req, res) => { sendHtml(res, 'logout.html'); });
+app.get('/favicon.ico', (req, res) => {
+    res.sendFile(path.join(__dirname, 'favicon.ico'));
+});
 app.get('/style.css', (req, res) => { res.sendFile(path.join(__dirname, 'style.css')); });
 app.get('/script.js', (req, res) => { res.sendFile(path.join(__dirname, 'script.js')); });
 

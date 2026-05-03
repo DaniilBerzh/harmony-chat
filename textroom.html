@@ -165,6 +165,14 @@
             color: var(--text-primary);
         }
         
+        /* Стиль для индикатора печатания */
+        .member-typing {
+            font-size: 10px;
+            color: #ff9800;
+            font-style: italic;
+            animation: pulse 1s infinite;
+        }
+        
         .chat-area {
             flex: 1;
             display: flex;
@@ -206,6 +214,21 @@
             font-style: italic;
             font-size: 12px;
             text-align: center;
+        }
+        
+        .typing-indicator {
+            padding: 6px 10px;
+            margin: 4px 0;
+            border-radius: 8px;
+            background: #fff3e0;
+            font-size: 12px;
+            color: #ff9800;
+            animation: fadeIn 0.3s;
+        }
+        
+        [data-theme="dark"] .typing-indicator {
+            background: #2a2a1a;
+            color: #ffb74d;
         }
         
         [data-theme="dark"] .system-message { background: #1a2a3a; }
@@ -251,6 +274,11 @@
             background: #9E9E9E;
             cursor: not-allowed;
             transform: none;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         @media (max-width: 768px) {
@@ -312,6 +340,7 @@
             <div class="chat-area">
                 <div class="messages" id="messages">
                     <div class="system-message">🔔 Добро пожаловать в текстовую комнату!</div>
+                    <div class="system-message">✏️ Когда кто-то печатает, вы увидите индикатор</div>
                 </div>
                 <div class="message-input-area">
                     <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500" autocomplete="off">
@@ -329,7 +358,10 @@
         let roomId = null;
         let userStaticId = localStorage.getItem('userStaticId');
         let lastMessageTime = 0;
+        let typingTimeout = null;
+        let isTyping = false;
         const COOLDOWN_MS = 2000;
+        const TYPING_DELAY = 1500;
         
         // DOM элементы
         const messageInput = document.getElementById('message-input');
@@ -397,6 +429,9 @@
                         case 'online_count':
                             document.getElementById('online-count').textContent = data.count;
                             break;
+                        case 'typing':
+                            showTypingIndicator(data.userId);
+                            break;
                     }
                 } catch(err) { console.error(err); }
             };
@@ -411,13 +446,47 @@
                 document.getElementById('members-count').textContent = '0';
                 return;
             }
+            // Убираем дубликаты
             const uniqueMembers = [...new Set(members)];
             container.innerHTML = uniqueMembers.map(m => `
                 <div class="member-item">
                     <span>${escapeHtml(m)} ${m === userStaticId ? '(Вы)' : ''}</span>
+                    <span class="member-status" id="typing-${escapeHtml(m)}"></span>
                 </div>
             `).join('');
             document.getElementById('members-count').textContent = uniqueMembers.length;
+        }
+        
+        // ============================================
+        // ИНДИКАТОР ПЕЧАТАНИЯ
+        // ============================================
+        function showTypingIndicator(userId) {
+            const typingSpan = document.getElementById(`typing-${userId}`);
+            if (typingSpan && userId !== userStaticId) {
+                typingSpan.innerHTML = '✏️ печатает...';
+                typingSpan.classList.add('member-typing');
+                setTimeout(() => {
+                    if (typingSpan) {
+                        typingSpan.innerHTML = '';
+                        typingSpan.classList.remove('member-typing');
+                    }
+                }, 2000);
+            }
+        }
+        
+        function sendTypingStatus() {
+            if (!isTyping && ws?.readyState === WebSocket.OPEN) {
+                isTyping = true;
+                ws.send(JSON.stringify({ type: 'typing', isTyping: true }));
+            }
+            
+            if (typingTimeout) clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                if (isTyping && ws?.readyState === WebSocket.OPEN) {
+                    isTyping = false;
+                    ws.send(JSON.stringify({ type: 'typing', isTyping: false }));
+                }
+            }, TYPING_DELAY);
         }
         
         async function fetchOnlineCount() {
@@ -471,6 +540,13 @@
                 messageInput.focus();
                 startCooldown();
                 
+                // Сбрасываем статус печатания
+                if (typingTimeout) clearTimeout(typingTimeout);
+                if (isTyping && ws?.readyState === WebSocket.OPEN) {
+                    isTyping = false;
+                    ws.send(JSON.stringify({ type: 'typing', isTyping: false }));
+                }
+                
                 setTimeout(() => {
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
                 }, 50);
@@ -506,9 +582,16 @@
         }
         
         function leaveRoom() {
-            if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'leave_room' }));
+            if (ws?.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'leave_room' }));
+            }
             window.location.href = '/dashboard.html';
         }
+        
+        // Обработка ввода текста (статус печатания)
+        messageInput.addEventListener('input', () => {
+            sendTypingStatus();
+        });
         
         messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -523,6 +606,13 @@
         connectWebSocket();
         fetchOnlineCount();
         setInterval(fetchOnlineCount, 10000);
+        
+        // Периодически запрашиваем обновленный список участников
+        setInterval(() => {
+            if (ws?.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'get_members' }));
+            }
+        }, 5000);
     </script>
 </body>
 </html>

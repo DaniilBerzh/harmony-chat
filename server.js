@@ -365,6 +365,18 @@ app.post('/api/rooms/:id/join', async (req, res) => {
             [roomId, user_static_id]
         );
         
+        // Отправляем обновленный список участников
+        const [members] = await db.promise().query(
+            "SELECT user_static_id FROM room_members WHERE room_id = ?",
+            [roomId]
+        );
+        const memberList = members.map(m => m.user_static_id);
+        
+        broadcastToRoom(parseInt(roomId), {
+            type: 'members_list',
+            members: memberList
+        });
+        
         broadcastToRoom(parseInt(roomId), {
             type: 'user_joined',
             userId: user_static_id
@@ -377,7 +389,7 @@ app.post('/api/rooms/:id/join', async (req, res) => {
     }
 });
 
-// Выйти из комнаты
+// Выйти из комнаты (ИСПРАВЛЕНО)
 app.post('/api/rooms/:id/leave', async (req, res) => {
     console.log('📝 Выход из комнаты:', req.params.id);
     
@@ -389,6 +401,19 @@ app.post('/api/rooms/:id/leave', async (req, res) => {
             "DELETE FROM room_members WHERE room_id = ? AND user_static_id = ?",
             [roomId, user_static_id]
         );
+        
+        // Получаем обновленный список участников
+        const [members] = await db.promise().query(
+            "SELECT user_static_id FROM room_members WHERE room_id = ?",
+            [roomId]
+        );
+        const memberList = members.map(m => m.user_static_id);
+        
+        // Отправляем обновленный список всем в комнате
+        broadcastToRoom(parseInt(roomId), {
+            type: 'members_list',
+            members: memberList
+        });
         
         broadcastToRoom(parseInt(roomId), {
             type: 'user_left',
@@ -737,6 +762,7 @@ app.get('/', (req, res) => { sendHtml(res, 'index.html'); });
 app.get('/dashboard.html', (req, res) => { sendHtml(res, 'dashboard.html'); });
 app.get('/admin.html', (req, res) => { sendHtml(res, 'admin.html'); });
 app.get('/room.html', (req, res) => { sendHtml(res, 'room.html'); });
+app.get('/textroom.html', (req, res) => { sendHtml(res, 'textroom.html'); });
 app.get('/logout.html', (req, res) => { sendHtml(res, 'logout.html'); });
 app.get('/favicon.ico', (req, res) => {
     res.sendFile(path.join(__dirname, 'favicon.ico'));
@@ -745,7 +771,7 @@ app.get('/style.css', (req, res) => { res.sendFile(path.join(__dirname, 'style.c
 app.get('/script.js', (req, res) => { res.sendFile(path.join(__dirname, 'script.js')); });
 
 // ============================================
-// WEBSOCKET
+// WEBSOCKET (ИСПРАВЛЕН)
 // ============================================
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -771,6 +797,7 @@ wss.on('connection', (ws) => {
                     clients.get(userStaticId).roomId = currentRoom;
                 }
                 
+                // Отправляем список участников новому пользователю
                 const [members] = await db.promise().query(
                     "SELECT user_static_id FROM room_members WHERE room_id = ?",
                     [currentRoom]
@@ -782,12 +809,27 @@ wss.on('connection', (ws) => {
                     members: memberList
                 }));
                 
+                // Оповещаем остальных о новом участнике
                 broadcastToRoom(currentRoom, {
                     type: 'user_joined',
                     userId: userStaticId
                 });
                 
                 console.log(`🎤 ${userStaticId} joined room ${currentRoom}`);
+            }
+            else if (msg.type === 'get_members') {
+                // Запрос на получение списка участников
+                if (currentRoom) {
+                    const [members] = await db.promise().query(
+                        "SELECT user_static_id FROM room_members WHERE room_id = ?",
+                        [currentRoom]
+                    );
+                    const memberList = members.map(m => m.user_static_id);
+                    ws.send(JSON.stringify({
+                        type: 'members_list',
+                        members: memberList
+                    }));
+                }
             }
             else if (msg.type === 'voice_data') {
                 if (!currentRoom) return;
@@ -815,11 +857,33 @@ wss.on('connection', (ws) => {
                 
                 console.log(`💬 ${userStaticId}: ${msg.message.substring(0, 50)}`);
             }
+            else if (msg.type === 'typing') {
+                if (!currentRoom) return;
+                
+                broadcastToRoom(currentRoom, {
+                    type: 'typing',
+                    userId: userStaticId,
+                    isTyping: msg.isTyping
+                });
+            }
             else if (msg.type === 'leave_room') {
                 if (currentRoom) {
+                    // Оповещаем о выходе
                     broadcastToRoom(currentRoom, {
                         type: 'user_left',
                         userId: userStaticId
+                    });
+                    
+                    // Отправляем обновленный список участников
+                    const [members] = await db.promise().query(
+                        "SELECT user_static_id FROM room_members WHERE room_id = ?",
+                        [currentRoom]
+                    );
+                    const memberList = members.map(m => m.user_static_id);
+                    
+                    broadcastToRoom(currentRoom, {
+                        type: 'members_list',
+                        members: memberList
                     });
                     
                     if (clients.has(userStaticId)) {

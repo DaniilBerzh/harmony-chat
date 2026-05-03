@@ -247,11 +247,6 @@
             white-space: nowrap;
         }
         
-        .message-input-area button:hover {
-            transform: scale(1.02);
-        }
-        
-        /* Стили для отключенной кнопки при КД */
         .message-input-area button:disabled {
             background: #9E9E9E;
             cursor: not-allowed;
@@ -283,7 +278,6 @@
             }
         }
         
-        /* Кастомный скроллбар */
         .messages::-webkit-scrollbar, .members-list::-webkit-scrollbar {
             width: 6px;
         }
@@ -310,13 +304,14 @@
         <div class="main-content">
             <div class="members-sidebar">
                 <h3>👥 Участники <span id="members-count">0</span></h3>
-                <div class="members-list" id="members-list">Загрузка...</div>
+                <div class="members-list" id="members-list">
+                    <div class="member-item">Загрузка...</div>
+                </div>
             </div>
             
             <div class="chat-area">
                 <div class="messages" id="messages">
                     <div class="system-message">🔔 Добро пожаловать в текстовую комнату!</div>
-                    <div class="system-message">⏱️ КД 2 секунды между сообщениями</div>
                 </div>
                 <div class="message-input-area">
                     <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500" autocomplete="off">
@@ -334,7 +329,7 @@
         let roomId = null;
         let userStaticId = localStorage.getItem('userStaticId');
         let lastMessageTime = 0;
-        const COOLDOWN_MS = 2000; // 2 секунды КД
+        const COOLDOWN_MS = 2000;
         
         // DOM элементы
         const messageInput = document.getElementById('message-input');
@@ -416,7 +411,6 @@
                 document.getElementById('members-count').textContent = '0';
                 return;
             }
-            // Убираем дубликаты
             const uniqueMembers = [...new Set(members)];
             container.innerHTML = uniqueMembers.map(m => `
                 <div class="member-item">
@@ -457,13 +451,11 @@
         function sendMessage() {
             const msg = messageInput.value.trim();
             
-            // Проверка на пустое сообщение
             if (!msg) {
                 addSystemMessage('❌ Нельзя отправить пустое сообщение');
                 return;
             }
             
-            // Проверка КД
             const now = Date.now();
             if (now - lastMessageTime < COOLDOWN_MS) {
                 const remaining = Math.ceil((COOLDOWN_MS - (now - lastMessageTime)) / 1000);
@@ -479,7 +471,6 @@
                 messageInput.focus();
                 startCooldown();
                 
-                // Автоскролл вниз
                 setTimeout(() => {
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
                 }, 50);
@@ -495,7 +486,6 @@
             messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             
-            // Ограничиваем количество сообщений (оставляем последние 200)
             while (messagesDiv.children.length > 200) {
                 messagesDiv.removeChild(messagesDiv.firstChild);
             }
